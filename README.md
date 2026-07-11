@@ -16,6 +16,7 @@
 <p align="center">
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
+  <a href="#deploy-for-free">Free Deploy</a> •
   <a href="#api-routes">API</a> •
   <a href="#screenshots">Screenshots</a> •
   <a href="#tech-stack">Tech Stack</a> •
@@ -118,7 +119,31 @@ python app.py
 
 Open **http://localhost:5000**
 
-### Production Deployment
+### Deploy for Free (No Credit Card)
+
+**Option 1 — Hugging Face Spaces (recommended, ffmpeg included)**
+
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face%20Spaces-yellow)](https://huggingface.co/new-space)
+
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
+2. Space Name: `neo-downloader` • License: `MIT` • Space SDK: **Docker**
+3. Connect your GitHub repo: `ashrafhacker/neo-downloader`
+4. Add secrets (Settings → Repository secrets):
+   - `ADMIN_PASSWORD` — choose a strong password
+   - `FLASK_SECRET_KEY` — run `python -c "import secrets; print(secrets.token_hex(32))"`
+5. Space builds automatically. Your app at: `https://ashrafhacker-neo-downloader.hf.space`
+
+**Option 2 — PythonAnywhere (simpler, no ffmpeg)**
+
+1. Create account at [pythonanywhere.com](https://pythonanywhere.com) (free tier)
+2. Open Bash console → `pip install flask yt-dlp requests Pillow python-dotenv gunicorn`
+3. Go to Web tab → Add a new web app → Manual config → Python 3.12
+4. Source code: `/home/yourname/neo-downloader`
+5. WSGI file: point to `/home/yourname/neo-downloader/app.py`
+6. Static files: `/downloads/` → URL `/downloads/`
+7. Reload. No ffmpeg = clip & watermark features disabled (download still works)
+
+### Production Deployment (VPS)
 
 ```bash
 # Install production deps
