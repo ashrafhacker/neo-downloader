@@ -1,0 +1,8 @@
+logs.db
+downloads/
+captures/
+__pycache__/
+*.pyc
+.env
+cookies.txt
+ffmpeg.exe
