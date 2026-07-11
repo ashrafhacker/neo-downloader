@@ -6,9 +6,9 @@
 </p>
 
 <div align="center">
-  <h1>⚡ Media Downloader</h1>
+  <h1>⚡ neo</h1>
   <p><strong>Paste any link. Watch instantly. Download clean.</strong></p>
-  <p>A premium web-based media powerhouse — download, stream, clip, and clean media from <strong>1000+ platforms</strong> with a beautiful glassmorphic UI.</p>
+  <p>A premium web-based media powerhouse — download, stream, clip, and clean media from <strong>1000+ platforms</strong>.</p>
 </div>
 
 <br>
@@ -109,26 +109,68 @@ git clone https://github.com/ashrafhacker/neo-downloader.git
 cd neo-downloader
 
 # Install dependencies
-pip install flask yt-dlp requests Pillow
+pip install -r requirements.txt
 
-# Place ffmpeg.exe in the repo root or ensure it's in PATH
-# Run
+# Place ffmpeg in PATH or repo root
+# Run (dev)
 python app.py
 ```
 
 Open **http://localhost:5000**
 
+### Production Deployment
+
+```bash
+# Install production deps
+pip install -r requirements.txt
+
+# Set required env vars
+export FLASK_SECRET_KEY="$(python -c "import secrets; print(secrets.token_hex(32))")"
+export ADMIN_PASSWORD="$(python -c "import secrets; print(secrets.token_hex(16))")"
+
+# Run with gunicorn
+gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+
+# Or on Windows with waitress
+pip install waitress
+waitress-serve --port=5000 app:app
+```
+
+**Deploy to Railway / Render / Fly.io** — just connect the repo; `Procfile` and `runtime.txt` are ready.
+
 ### Requirements
 - Python 3.7+
 - ffmpeg (for clipping, watermark removal, format merging)
 - Pillow (for image watermark removal)
+- MongoDB (optional, for replication logging — set `MONGO_URI`)
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
+| `ADMIN_PASSWORD` | **Required for production.** Hashed password for admin panel (use werkzeug) |
+| `FLASK_SECRET_KEY` | **Required for production.** Random 64-char hex string for session signing |
+| `MONGO_URI` | MongoDB connection string for optional replication logging |
 | `WEBHOOK_URL` | Receive real-time POST webhooks on every download & capture event |
 | `TERABOX_COOKIE` | Cookie string for Terabox downloads |
+| `PORT` | Server port (default: 5000) |
+| `FLASK_DEBUG` | Set to `1` for debug mode (default: `0`) |
+
+### Security Features
+
+| Feature | Status |
+|---------|--------|
+| Admin password hashing (werkzeug pbkdf2) | ✅ |
+| Session-based authentication | ✅ |
+| Rate limiting on all API endpoints | ✅ |
+| Input validation & sanitization | ✅ |
+| Path traversal protection | ✅ |
+| SQL injection prevention (parameterized queries) | ✅ |
+| CSRF token generation | ✅ |
+| Security headers (CSP, X-Frame-Options, etc.) | ✅ |
+| CORS restricted to same origin | ✅ |
+| MongoDB replication logging (optional) | ✅ |
+| `.env` support via python-dotenv | ✅ |
 
 ---
 
@@ -184,10 +226,10 @@ Open **http://localhost:5000**
 
 | | |
 |---|---|
-| **Backend** | Python, Flask, yt-dlp, ffmpeg, Pillow |
-| **Database** | SQLite (auto-created `logs.db`) |
+| **Backend** | Python, Flask, yt-dlp, ffmpeg, Pillow, Gunicorn |
+| **Database** | SQLite (auto-created `logs.db`) / MongoDB (optional) |
 | **Frontend** | HTML5, CSS3, Vanilla JavaScript, html2canvas |
-| **Infrastructure** | Cross-platform (Windows/Linux/Mac) |
+| **Infrastructure** | Cross-platform (Windows/Linux/Mac), ready for Railway/Render/Fly |
 | **CDN** | Google Fonts (Inter), html2canvas |
 
 </div>
@@ -195,6 +237,12 @@ Open **http://localhost:5000**
 ---
 
 <h2 id="changelog">📋 Changelog</h2>
+
+### v2.2
+- 🏷️ Rebranded to **neo** — cleaner logo, streamlined naming
+- 🚀 Production-ready deployment config — `Procfile`, `runtime.txt`, `requirements.txt`
+- 📦 python-dotenv auto-load on startup
+- 🌐 Ready for Railway / Render / Fly.io — one-click deploy from repo
 
 ### v2.1 (Latest)
 - 🎨 Complete UI redesign inspired by iTeraPlay — clean gradient hero, feature cards, step guide, stats row
@@ -234,7 +282,7 @@ Open **http://localhost:5000**
 <div align="center">
   <br>
   <p>
-    <sub>Built with ❤️ by <strong>Neo_Hacker</strong></sub>
+    <sub>Built with ❤️ by <strong>neo</strong></sub>
     <br>
     <a href="https://github.com/ashrafhacker/neo-downloader">📦 GitHub</a> •
     <a href="/admin">🔐 Admin Panel</a>

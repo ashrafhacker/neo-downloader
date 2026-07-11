@@ -1,8 +1,31 @@
-logs.db
+# ===== Environment =====
+.env
+.env.local
+.env.production
+
+# ===== Runtime =====
 downloads/
 captures/
-__pycache__/
+logs.db
 *.pyc
-.env
-cookies.txt
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# ===== Binaries =====
 ffmpeg.exe
+ffmpeg
+ffprobe.exe
+ffprobe
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+Thumbs.db
+.DS_Store

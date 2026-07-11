@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neo // Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:'Inter',-apple-system,sans-serif;
+  background:#08080e;color:#c0c0d0;min-height:100vh;padding:14px;
+}
+.terminal-bar{display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid rgba(124,58,237,.15)}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#ffbd2e}.dot.g{background:#28ca41}
+h1{font-size:1.2rem;font-weight:700;color:#7c3aed;letter-spacing:1px;margin-bottom:12px}
+h1 span{color:#555;font-weight:400}
+.card{max-width:500px;margin:0 auto;background:rgba(18,18,30,.4);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:20px}
+.card h2{font-size:.9rem;font-weight:600;margin-bottom:12px;color:#ccc}
+.card h2 .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.6rem;font-weight:500;margin-left:6px}
+.card h2 .badge.on{background:rgba(0,200,80,.08);color:#00c853}
+.card h2 .badge.off{background:rgba(255,50,50,.08);color:#ff5252}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:.72rem;color:#666;margin-bottom:4px;font-weight:500}
+.form-group input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:#e0e0f0;font-size:.85rem;outline:none;font-family:inherit;transition:all .2s}
+.form-group input:focus{border-color:rgba(124,58,237,.3)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;border-radius:8px;font-weight:600;font-size:.78rem;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn.primary{background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);box-shadow:0 4px 20px rgba(124,58,237,.2)}
+.btn.primary:disabled{opacity:.3;cursor:not-allowed;filter:none;box-shadow:none}
+.btn.danger{background:rgba(255,50,50,.08);border:1px solid rgba(255,50,50,.15);color:#ff5252}
+.btn.danger:hover{background:rgba(255,50,50,.15)}
+.btn.secondary{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);color:#666}
+.btn.secondary:hover{background:rgba(255,255,255,.07);color:#ccc}
+.sep{height:1px;background:rgba(255,255,255,.04);margin:16px 0}
+.msg{padding:8px 12px;border-radius:8px;font-size:.72rem;margin-bottom:12px;display:none}
+.msg.show{display:block}
+.msg.ok{background:rgba(0,200,80,.06);border:1px solid rgba(0,200,80,.1);color:#00c853}
+.msg.err{background:rgba(255,50,50,.06);border:1px solid rgba(255,50,50,.1);color:#ff5252}
+.footer{text-align:center;margin-top:16px;font-size:.6rem;color:#333}
+.footer a{color:#555;text-decoration:none}
+.footer a:hover{color:#7c3aed}
+.loading{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="terminal-bar">
+  <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+  <span style="font-size:0.65rem;color:#555">root@neo:~$</span>
+  <a href="/admin" style="margin-left:auto;font-size:0.5rem;color:#7c3aed;text-decoration:none">[back to dashboard]</a>
+</div>
+<h1>neo <span>Settings</span></h1>
+
+<div class="card">
+  <div id="msgBox" class="msg"></div>
+
+  <h2>Password Protection <span class="badge {% if has_password %}on{% else %}off{% endif %}" id="statusBadge">{% if has_password %}ENABLED{% else %}DISABLED{% endif %}</span></h2>
+
+  <div class="form-group">
+    <label for="newPwd">{% if has_password %}Change{% else %}Set{% endif %} Master Password</label>
+    <input type="password" id="newPwd" placeholder="Enter new password (min 4 chars)">
+  </div>
+  <div class="form-group">
+    <label for="confirmPwd">Confirm Password</label>
+    <input type="password" id="confirmPwd" placeholder="Confirm new password">
+  </div>
+  <button class="btn primary" id="saveBtn">{% if has_password %}&#128272; Update Password{% else %}&#128272; Set Password{% endif %}</button>
+
+  <div class="sep"></div>
+
+  <button class="btn danger" id="disableBtn" {% if not has_password %}disabled{% endif %}>Disable Password Protection</button>
+  <p style="font-size:.6rem;color:#444;margin-top:6px">Anyone with the admin URL can access without login.</p>
+</div>
+
+<div class="footer">
+  <a href="/admin">&#8592; Back to dashboard</a>
+</div>
+
+<script>
+function msg(text, type) {
+  const el = document.getElementById('msgBox');
+  el.textContent = text; el.className = 'msg show ' + type;
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 4000);
+}
+document.getElementById('saveBtn').onclick = async () => {
+  const pwd = document.getElementById('newPwd').value;
+  const confirm = document.getElementById('confirmPwd').value;
+  if (!pwd || pwd.length < 4) { msg('Password must be at least 4 characters', 'err'); return; }
+  if (pwd !== confirm) { msg('Passwords do not match', 'err'); return; }
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="loading"></span> Saving...';
+  try {
+    const r = await fetch('/admin/settings/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd}) });
+    const d = await r.json();
+    if (d.success) { msg(d.message, 'ok'); document.getElementById('newPwd').value=''; document.getElementById('confirmPwd').value=''; document.getElementById('statusBadge').textContent='ENABLED'; document.getElementById('statusBadge').className='badge on'; document.getElementById('disableBtn').disabled=false; }
+    else msg(d.error||'Failed', 'err');
+  } catch(e) { msg('Error: '+e.message, 'err'); }
+  btn.disabled=false; btn.innerHTML='&#128272; Update Password';
+};
+document.getElementById('disableBtn').onclick = async () => {
+  if (!confirm('DISABLE password protection? Anyone can access the admin panel.')) return;
+  const btn = document.getElementById('disableBtn');
+  btn.disabled = true; btn.textContent = 'Disabling...';
+  try {
+    const r = await fetch('/admin/settings/password/disable', { method:'POST' });
+    const d = await r.json();
+    if (d.success) { msg(d.message, 'ok'); document.getElementById('statusBadge').textContent='DISABLED'; document.getElementById('statusBadge').className='badge off'; btn.disabled=true; }
+    else msg(d.error||'Failed', 'err');
+  } catch(e) { msg('Error: '+e.message, 'err'); }
+  btn.disabled=false; btn.textContent='Disable Password Protection';
+};
+</script>
+</body>
+</html>

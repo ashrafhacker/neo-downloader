@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>neo // Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:'Inter',-apple-system,sans-serif;
+  background:#08080e;color:#e0e0f0;min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+.glow{
+  position:fixed;top:-30%;left:-20%;width:80%;height:80%;
+  background:radial-gradient(circle,rgba(124,58,237,.06) 0%,transparent 70%);
+  pointer-events:none;
+}
+.glow2{
+  position:fixed;bottom:-30%;right:-20%;width:80%;height:80%;
+  background:radial-gradient(circle,rgba(59,130,246,.04) 0%,transparent 70%);
+  pointer-events:none;
+}
+.login-card{
+  position:relative;z-index:1;width:100%;max-width:400px;padding:32px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);
+  border-radius:20px;backdrop-filter:blur(16px);
+  box-shadow:0 24px 80px rgba(0,0,0,.4);
+}
+.logo{
+  display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:4px;
+  font-size:1.2rem;font-weight:800;letter-spacing:-.3px;
+}
+.logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:1rem;color:#fff}
+h1{font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:3px}
+.sub{font-size:.72rem;color:#555;text-align:center;margin-bottom:24px}
+.input-group{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.input-group label{font-size:.68rem;color:#666;font-weight:500;letter-spacing:.3px}
+.input-group input{
+  padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);color:#e0e0f0;font-size:.85rem;outline:none;
+  font-family:inherit;transition:all .2s;
+}
+.input-group input:focus{border-color:rgba(124,58,237,.3);box-shadow:0 0 30px rgba(124,58,237,.04)}
+.input-group input::placeholder{color:#444}
+.login-btn{
+  width:100%;padding:12px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff;
+  font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;
+  transition:all .2s;margin-top:4px;
+}
+.login-btn:hover{filter:brightness(1.1);box-shadow:0 4px 25px rgba(124,58,237,.2)}
+.login-btn:disabled{opacity:.3;cursor:not-allowed;filter:none;box-shadow:none}
+.error{
+  display:none;padding:8px 12px;border-radius:8px;font-size:.72rem;
+  background:rgba(255,50,50,.06);border:1px solid rgba(255,50,50,.1);
+  color:#ff5252;margin-bottom:12px;text-align:center;
+}
+.error.show{display:block}
+.sep{display:flex;align-items:center;gap:12px;margin:20px 0;color:#444;font-size:.65rem}
+.sep::before,.sep::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.04)}
+.social-btns{display:flex;flex-direction:column;gap:8px}
+.social-btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);color:#aaa;font-size:.78rem;font-weight:500;
+  cursor:pointer;text-decoration:none;transition:all .15s;font-family:inherit;
+}
+.social-btn:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:#fff}
+.social-btn .s-icon{font-size:1.1rem;width:20px;text-align:center}
+.social-btn.google:hover .s-icon{color:#ea4335}
+.social-btn.github:hover .s-icon{color:#fff}
+.social-btn.discord:hover .s-icon{color:#5865f2}
+.social-btn.twitter:hover .s-icon{color:#1da1f2}
+.footer{text-align:center;margin-top:16px;font-size:.6rem;color:#333}
+.footer a{color:#555;text-decoration:none}
+.footer a:hover{color:#7c3aed}
+.loading{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .5s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="glow"></div><div class="glow2"></div>
+
+<div class="login-card">
+  <div class="logo">
+    <div class="logo-icon">&#128272;</div>
+    <span>neo<span style="color:#7c3aed">.</span></span>
+  </div>
+  <h1>Secure Access</h1>
+  <p class="sub">Authenticate to access the admin dashboard</p>
+
+  <div class="error {% if error %}show{% endif %}" id="errorBox">{{ error or '' }}</div>
+
+  <form method="POST" action="/admin/login" id="loginForm">
+    <div class="input-group">
+      <label for="password">Master Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter admin password" autofocus>
+    </div>
+    <button type="submit" class="login-btn" id="loginBtn">&#128274; Unlock Dashboard</button>
+  </form>
+
+  <div class="sep">Or continue with</div>
+
+  <div class="social-btns">
+    <a href="#" class="social-btn google" onclick="t('OAuth coming soon')">
+      <span class="s-icon">G</span> Sign in with Google
+    </a>
+    <a href="#" class="social-btn github" onclick="t('OAuth coming soon')">
+      <span class="s-icon">&#128187;</span> Sign in with GitHub
+    </a>
+    <a href="#" class="social-btn discord" onclick="t('OAuth coming soon')">
+      <span class="s-icon">&#128172;</span> Sign in with Discord
+    </a>
+    <a href="#" class="social-btn twitter" onclick="t('OAuth coming soon')">
+      <span class="s-icon">X</span> Sign in with X / Twitter
+    </a>
+  </div>
+
+  <div class="footer">
+    <a href="/">&#8592; Back to main page</a>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;padding:8px 18px;border-radius:10px;font-size:.72rem;background:rgba(20,20,30,.95);border:1px solid rgba(255,255,255,.06);color:#ddd;backdrop-filter:blur(12px);display:none;box-shadow:0 8px 40px rgba(0,0,0,.4)"></div>
+<script>
+function t(m){const e=document.getElementById('toast');e.textContent=m;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',2500)}
+document.getElementById('loginForm').onsubmit=function(){document.getElementById('loginBtn').innerHTML='<span class="loading"></span> Authenticating...';document.getElementById('loginBtn').disabled=true};
+</script>
+</body>
+</html>
