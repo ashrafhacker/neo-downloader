@@ -121,27 +121,39 @@ Open **http://localhost:5000**
 
 ### Deploy for Free (No Credit Card)
 
-**Option 1 — Hugging Face Spaces (recommended, ffmpeg included)**
+**Option 1 — Vercel (easiest)**
+
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=ashrafhacker/neo-downloader)
+
+1. Push repo to GitHub, then import into [vercel.com](https://vercel.com)
+2. Set env vars in Vercel dashboard:
+   - `ADMIN_PASSWORD` = `neo@193100`
+   - `FLASK_SECRET_KEY` = *(run `python -c "import secrets; print(secrets.token_hex(32))"`)*
+3. Deploy — Vercel auto-detects `vercel.json`. App runs as a serverless function.
+
+> **Limitations:** No persistent file storage (downloads lost after cold starts), no ffmpeg (clip/watermark disabled).
+
+**Option 2 — Hugging Face Spaces (ffmpeg included)**
 
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face%20Spaces-yellow)](https://huggingface.co/new-space)
 
-1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
-2. Space Name: `neo-downloader` • License: `MIT` • Space SDK: **Docker**
-3. Connect your GitHub repo: `ashrafhacker/neo-downloader`
-4. Add secrets (Settings → Repository secrets):
-   - `ADMIN_PASSWORD` — choose a strong password
-   - `FLASK_SECRET_KEY` — run `python -c "import secrets; print(secrets.token_hex(32))"`
-5. Space builds automatically. Your app at: `https://ashrafhacker-neo-downloader.hf.space`
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space) → Name: `neo-downloader` → SDK: **Docker**
+2. Connect GitHub repo `ashrafhacker/neo-downloader`
+3. Add secrets: `ADMIN_PASSWORD`=`neo@193100`, `FLASK_SECRET_KEY`=...
+4. Builds automatically. App at `https://youruser-neo-downloader.hf.space`
 
-**Option 2 — PythonAnywhere (simpler, no ffmpeg)**
+> ✅ Full ffmpeg support — clipping & watermark removal work.
 
-1. Create account at [pythonanywhere.com](https://pythonanywhere.com) (free tier)
-2. Open Bash console → `pip install flask yt-dlp requests Pillow python-dotenv gunicorn`
-3. Go to Web tab → Add a new web app → Manual config → Python 3.12
-4. Source code: `/home/yourname/neo-downloader`
-5. WSGI file: point to `/home/yourname/neo-downloader/app.py`
-6. Static files: `/downloads/` → URL `/downloads/`
-7. Reload. No ffmpeg = clip & watermark features disabled (download still works)
+**Option 3 — PythonAnywhere (simpler, no ffmpeg)**
+
+1. Account at [pythonanywhere.com](https://pythonanywhere.com) → Web tab → Add web app → Manual config → Python 3.12
+2. `pip install flask yt-dlp requests Pillow python-dotenv gunicorn`
+3. Set `ADMIN_PASSWORD=neo@193100` in WSGI config file
+4. Reload. No ffmpeg = clip & watermark disabled (download still works).
+
+> **Netlify not supported** — Netlify is for static sites. Python Flask requires a server. Use Vercel or Hugging Face instead.
+
+### Production Deployment (VPS)
 
 ### Production Deployment (VPS)
 

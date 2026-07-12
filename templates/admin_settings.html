@@ -57,6 +57,11 @@ h1 span{color:#555;font-weight:400}
 <div class="card">
   <div id="msgBox" class="msg"></div>
 
+  {% if is_env_password %}
+  <div style="padding:12px;border-radius:8px;background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.1);margin-bottom:14px;font-size:.75rem;color:#7c3aed">
+    Password managed via <code style="background:rgba(255,255,255,.04);padding:2px 6px;border-radius:4px;font-size:.65rem">ADMIN_PASSWORD</code> environment variable. Change it in your platform dashboard.
+  </div>
+  {% else %}
   <h2>Password Protection <span class="badge {% if has_password %}on{% else %}off{% endif %}" id="statusBadge">{% if has_password %}ENABLED{% else %}DISABLED{% endif %}</span></h2>
 
   <div class="form-group">
@@ -73,6 +78,7 @@ h1 span{color:#555;font-weight:400}
 
   <button class="btn danger" id="disableBtn" {% if not has_password %}disabled{% endif %}>Disable Password Protection</button>
   <p style="font-size:.6rem;color:#444;margin-top:6px">Anyone with the admin URL can access without login.</p>
+  {% endif %}
 </div>
 
 <div class="footer">

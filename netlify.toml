@@ -1,0 +1,19 @@
+[build]
+  command = "echo 'Python app - no build step'"
+  functions = "netlify/functions"
+
+[functions]
+  included_files = ["app.py", "db_adapter.py", "templates/**", "requirements.txt"]
+
+[build.environment]
+  PYTHON_VERSION = "3.12"
+
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/app"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/app"
+  status = 200

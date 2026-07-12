@@ -818,7 +818,8 @@ def admin_settings():
     pwd_hash = get_admin_password()
     has_password = bool(pwd_hash)
     db_stats = get_db_stats()
-    return render_template("admin_settings.html", has_password=has_password, db_stats=db_stats)
+    is_env_password = bool(ADMIN_PASSWORD)
+    return render_template("admin_settings.html", has_password=has_password, db_stats=db_stats, is_env_password=is_env_password)
 
 @app.route("/admin/settings/password", methods=["POST"])
 @require_admin
