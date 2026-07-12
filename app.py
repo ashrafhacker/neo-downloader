@@ -1,11 +1,28 @@
 import os, re, uuid, threading, shutil, urllib.parse, datetime, json, functools, hashlib, secrets, time, html
 from pathlib import Path
-from dotenv import load_dotenv
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 from flask import Flask, render_template, request, jsonify, send_file, url_for, g, session, redirect, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
 import re
-from db_adapter import get_db, close_db, get_db_type, get_db_stats, mongo_db
+try:
+    from db_adapter import get_db, close_db, get_db_type, get_db_stats, mongo_db
+except:
+    # Fallback if db_adapter fails
+    mongo_db = None
+    class _DummyDB:
+        def execute(self, sql, params=None):
+            return []
+        def commit(self): pass
+        def close(self): pass
+    _dummy_db = _DummyDB()
+    def get_db(): return _dummy_db
+    def close_db(e=None): pass
+    def get_db_type(): return 'none'
+    def get_db_stats(): return {'type':'none','collections':{}}
 
 try:
     import yt_dlp
@@ -54,6 +71,10 @@ TERABOX_DOMAINS = ["terabox", "1024tera", "dubox", "freeterabox", "teraboxapp"]
 rate_store = {}
 rate_lock = threading.Lock()
 def rate_limit(requests_per_minute=60, burst=10):
+    if IS_SERVERLESS:
+        def decorator(f):
+            return f
+        return decorator
     def decorator(f):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
@@ -112,6 +133,7 @@ def has_ffmpeg():
     return shutil.which("ffmpeg") is not None
 
 FFMPEG_OK = has_ffmpeg()
+IS_SERVERLESS = os.environ.get("VERCEL") or os.environ.get("SERVERLESS") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
 # ===== Error Handlers =====
 @app.errorhandler(404)
@@ -155,12 +177,17 @@ def teardown_db(e):
     close_db(e)
 
 # === GEO ===
+_geo_cache = {}
 def get_geo(ip):
     if ip in ('127.0.0.1', '::1', 'localhost'): return {}
-    if not HTTP_OK: return {}
+    if not HTTP_OK or IS_SERVERLESS: return {}
+    if ip in _geo_cache: return _geo_cache[ip]
     try:
-        r = http_requests.get(f"http://ip-api.com/json/{ip}?fields=country,city,isp,lat,lon", timeout=3)
-        if r.status_code == 200: return r.json()
+        r = http_requests.get(f"http://ip-api.com/json/{ip}?fields=country,city,isp,lat,lon", timeout=2)
+        if r.status_code == 200:
+            data = r.json()
+            _geo_cache[ip] = data
+            return data
     except: pass
     return {}
 
@@ -408,74 +435,119 @@ def download():
         return jsonify(result)
 
     url = clean_url(url)
-    try:
-        if YTDLP_OK:
-            uid = uuid.uuid4().hex
-            outtmpl = str(DOWNLOADS / f"{uid}_%(title)s.%(ext)s")
-            cookie_file = str(Path(__file__).parent / "cookies.txt")
-            opts = {"outtmpl":outtmpl,"quiet":True,"no_warnings":True,"restrictfilenames":True,"socket_timeout":30,"retries":3,"fragment_retries":3}
+
+    # Step 1: Extract metadata + direct CDN URL (works on all platforms, fast)
+    if YTDLP_OK:
+        try:
+            opts = {"quiet":True,"no_warnings":True,"socket_timeout":15,"extract_flat":False}
+            if os.path.isfile(str(Path(__file__).parent / "cookies.txt")):
+                opts["cookiefile"] = str(Path(__file__).parent / "cookies.txt")
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            title = info.get("title", "media") or "media"
+            ext = "mp4"
+            direct_url = ""
+            best_format = None
+            formats = info.get("formats") or []
             if mode == "audio":
-                if FFMPEG_OK:
-                    opts["format"] = "bestaudio/best"
-                    opts["postprocessors"] = [{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"192"}]
-                else: opts["format"] = "bestaudio/best"
-            elif mode == "video":
-                if not FFMPEG_OK: opts["format"] = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
-                elif fmt and fmt != "best":
-                    opts["format"] = f"{fmt}+bestaudio/best"; opts["merge_output_format"] = "mp4"
-                else: opts["format"] = "bestvideo+bestaudio/best"; opts["merge_output_format"] = "mp4"
-            if os.path.isfile(cookie_file): opts["cookiefile"] = cookie_file
-            try:
+                for f in formats:
+                    if f.get("acodec") and f.get("acodec") != "none" and f.get("url"):
+                        ext = f.get("ext", "mp3")
+                        direct_url = f["url"]
+                        break
+                if not direct_url:
+                    for f in formats:
+                        if f.get("vcodec") in ("none",) and f.get("url"):
+                            ext = f.get("ext", "mp3")
+                            direct_url = f["url"]
+                            break
+            else:
+                for f in formats:
+                    if f.get("vcodec") and f.get("vcodec") != "none" and f.get("acodec") and f.get("acodec") != "none":
+                        if f.get("url"):
+                            best_format = f
+                            ext = f.get("ext", "mp4")
+                            direct_url = f["url"]
+                            break
+                if not direct_url:
+                    for f in formats:
+                        if f.get("vcodec") and f.get("vcodec") != "none" and f.get("url"):
+                            best_format = f
+                            ext = f.get("ext", "mp4")
+                            direct_url = f["url"]
+                            break
+            if direct_url:
+                site = get_site_label(url)
+                result = {"success":True,"title":title,"ext":ext,"site":site,"direct_url":direct_url}
+                if best_format:
+                    fs = best_format.get("filesize") or best_format.get("filesize_approx") or 0
+                    if fs: result["filesize"] = fs
+                log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
+                return jsonify(result)
+        except Exception:
+            pass
+
+    # Step 2: Fallback - try full download to local storage (works on HF Spaces / Render / local)
+    if YTDLP_OK or HTTP_OK:
+        try:
+            uid = uuid.uuid4().hex
+            if YTDLP_OK:
+                outtmpl = str(DOWNLOADS / f"{uid}_%(title)s.%(ext)s")
+                opts = {"outtmpl":outtmpl,"quiet":True,"no_warnings":True,"restrictfilenames":True,"socket_timeout":30,"retries":3,"fragment_retries":3}
+                if mode == "audio":
+                    if FFMPEG_OK:
+                        opts["format"] = "bestaudio/best"
+                        opts["postprocessors"] = [{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"192"}]
+                    else: opts["format"] = "bestaudio/best"
+                elif mode == "video":
+                    if not FFMPEG_OK: opts["format"] = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
+                    elif fmt and fmt != "best": opts["format"] = f"{fmt}+bestaudio/best"; opts["merge_output_format"] = "mp4"
+                    else: opts["format"] = "bestvideo+bestaudio/best"; opts["merge_output_format"] = "mp4"
+                if os.path.isfile(str(Path(__file__).parent / "cookies.txt")):
+                    opts["cookiefile"] = str(Path(__file__).parent / "cookies.txt")
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=True)
                     filepath = ydl.prepare_filename(info)
-            except Exception as e:
-                filepath = str(DOWNLOADS / f"{uid}.mp4")
-            if filepath:
-                p = Path(filepath)
-                if mode == "audio" and FFMPEG_OK:
-                    p = p.with_suffix(".mp3")
-                if not p.is_file():
-                    for f in DOWNLOADS.iterdir():
-                        if f.name.startswith(uid):
-                            p = f; break
-                if p.is_file():
-                    title = info.get("title","media") if 'info' in dir() else Path(p).stem.replace('_',' ')[:50]
+                if filepath and mode == "audio" and FFMPEG_OK:
+                    filepath = str(Path(filepath).with_suffix(".mp3"))
+                if filepath and os.path.isfile(filepath):
+                    p = Path(filepath)
+                else:
+                    p = None
+                    if filepath:
+                        for f in DOWNLOADS.iterdir():
+                            if f.name.startswith(uid): p = f; break
+                if p and p.is_file():
+                    title = info.get("title","media")[:60]
                     ext = p.suffix[1:]
                     filesize = p.stat().st_size
                     site = get_site_label(url)
                     result = {"success":True,"title":title,"ext":ext,"filesize":filesize,"site":site,"filename":p.name,"download_url":url_for("serve_file",filename=p.name),"player_url":url_for("play",filename=p.name)}
                     log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
                     return jsonify(result)
-        if HTTP_OK:
-            uid2 = uuid.uuid4().hex
-            parsed_url = urllib.parse.urlparse(url)
-            url_name = Path(parsed_url.path).name or 'file'
-            safe_name = re.sub(r'[^\w\.-]', '_', url_name)
-            fname = f"{uid2}_{safe_name}"
-            fpath = DOWNLOADS / fname
-            r = http_requests.get(url, stream=True, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
-            if r.status_code == 200:
-                ct = r.headers.get('Content-Type', '')
-                ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(parsed_url.path).suffix or '.bin'
-                if not fname.lower().endswith(ext.lower()): fname += ext; fpath = DOWNLOADS / fname
-                with open(str(fpath), 'wb') as f:
-                    for chunk in r.iter_content(8192): f.write(chunk)
-                title = Path(parsed_url.path).name or 'file'
-                site = get_site_label(url)
-                result = {"success":True,"title":title,"ext":ext[1:],"filename":fpath.name,"site":site,"download_url":url_for("serve_file",filename=fpath.name)}
-                log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
-                return jsonify(result)
-            return jsonify({"error":"Could not download - try a different URL"}), 400
-        return jsonify({"error":"yt-dlp and requests modules unavailable on this server"}), 400
-    except Exception as e:
-        msg = str(e)
-        if "ffmpeg" in msg.lower(): msg = "Install ffmpeg for best quality, or use Audio mode."
-        elif "No video formats found" in msg: msg = f"This {get_site_label(url)} post has no downloadable video formats."
-        elif "Private video" in msg or "Private" in msg: msg = "This video is private or age-restricted."
-        elif "HTTP Error 403" in msg: msg = "Access blocked (403). Try again or use a different URL."
-        log_download(ip, url, mode, 'error', '', ua, ref, session_id=session_id)
-        return jsonify({"error":msg}), 400
+            if HTTP_OK:
+                parsed_url = urllib.parse.urlparse(url)
+                url_name = Path(parsed_url.path).name or 'file'
+                safe_name = re.sub(r'[^\w\.-]', '_', url_name)
+                fname = f"{uuid.uuid4().hex}_{safe_name}"
+                fpath = DOWNLOADS / fname
+                r = http_requests.get(url, stream=True, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+                if r.status_code == 200:
+                    ct = r.headers.get('Content-Type', '')
+                    ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(parsed_url.path).suffix or '.bin'
+                    if not fname.lower().endswith(ext.lower()): fname += ext; fpath = DOWNLOADS / fname
+                    with open(str(fpath), 'wb') as f:
+                        for chunk in r.iter_content(8192): f.write(chunk)
+                    title = Path(parsed_url.path).name or 'file'
+                    site = get_site_label(url)
+                    result = {"success":True,"title":title,"ext":ext[1:],"filename":fpath.name,"site":site,"download_url":url_for("serve_file",filename=fpath.name)}
+                    log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
+                    return jsonify(result)
+        except Exception:
+            pass
+
+    log_download(ip, url, mode, 'error', '', ua, ref, session_id=session_id)
+    return jsonify({"error":"Could not process this URL. Try a direct media link, or deploy on Hugging Face Spaces for full support."}), 400
 
 @app.route("/serve/<filename>")
 def serve_file(filename):

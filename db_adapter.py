@@ -4,7 +4,7 @@ import os, sqlite3, datetime, json
 from pathlib import Path
 from flask import g
 
-DB_PATH = Path(__file__).parent / "logs.db"
+DB_PATH = Path("/tmp/logs.db") if os.environ.get("VERCEL") else Path(__file__).parent / "logs.db"
 MONGO_URI = os.environ.get("MONGO_URI", "")
 MONGO_DB_NAME = os.environ.get("MONGO_DB_NAME", "media_downloader")
 
@@ -33,8 +33,12 @@ class SQLiteDB:
     """SQLite adapter — returns dict-like rows, supports ? params."""
 
     def __init__(self):
-        self.conn = sqlite3.connect(str(DB_PATH))
+        self.conn = sqlite3.connect(str(DB_PATH), timeout=3)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+        self.conn.execute("PRAGMA busy_timeout=3000")
+        self.conn.execute("PRAGMA cache_size=-4000")
         self._init_schema()
 
     def _init_schema(self):

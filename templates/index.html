@@ -722,10 +722,10 @@ dlBtn.addEventListener('click', async () => {
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
     if(d.error) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr(d.error); dlBtn.disabled=false; dlBtn.textContent='Play'; dlBtn2.disabled=false; return; }
     setTimeout(() => { hide(ring); hide(flashBox); }, 400);
-    lastFilename = d.filename; addHistory(url);
+    lastFilename = d.filename || ''; addHistory(url);
     doneTitle.textContent = d.title && d.title.length > 60 ? d.title.slice(0,60)+'...' : d.title || 'Untitled';
     doneSub.textContent = (d.ext||'').toUpperCase();
-    doneLink.href = d.download_url; doneLink.download = d.filename;
+    if (d.direct_url) { doneLink.href = d.direct_url; doneLink.download = ''; } else { doneLink.href = d.download_url; doneLink.download = d.filename; }
     document.getElementById('extBadge').textContent = (d.ext||'').toUpperCase() + (d.site ? ' \u00B7 ' + d.site : '');
     if (d.filesize) document.getElementById('doneSize').textContent = (d.filesize/1024/1024).toFixed(1)+' MB'; else document.getElementById('doneSize').textContent = '';
     const pv = document.getElementById('previewVideo'), pa = document.getElementById('previewAudio');
@@ -733,11 +733,21 @@ dlBtn.addEventListener('click', async () => {
     const videoExts = {'mp4':1,'webm':1,'mkv':1,'mov':1,'avi':1,'ts':1,'3gp':1,'ogg':1};
     const audioExts = {'mp3':1,'wav':1,'m4a':1,'aac':1,'flac':1,'opus':1,'wma':1,'ogg':1};
     pv.style.display = 'none'; pv.removeAttribute('src'); pa.style.display = 'none'; pa.removeAttribute('src');
-    if (videoExts[ext]) { pv.src = '/preview/' + d.filename; pv.style.display = 'block'; pv.load(); setTimeout(() => pv.play().catch(()=>{}), 300); document.getElementById('pipBtn').classList.add('show'); }
-    else if (audioExts[ext]) { pa.src = '/preview/' + d.filename; pa.style.display = 'block'; pa.load(); setTimeout(() => pa.play().catch(()=>{}), 300); document.getElementById('pipBtn').classList.remove('show'); }
+    const mediaUrl = d.direct_url || (d.filename ? '/preview/' + d.filename : '');
+    if (videoExts[ext] && mediaUrl) { pv.src = mediaUrl; pv.style.display = 'block'; pv.load(); setTimeout(() => pv.play().catch(()=>{}), 300); document.getElementById('pipBtn').classList.add('show'); }
+    else if (audioExts[ext] && mediaUrl) { pa.src = mediaUrl; pa.style.display = 'block'; pa.load(); setTimeout(() => pa.play().catch(()=>{}), 300); document.getElementById('pipBtn').classList.remove('show'); }
     else { document.getElementById('pipBtn').classList.remove('show'); }
     document.getElementById('modeGroup').style.display='none'; urlPreview.classList.remove('show');
-    show(doneBox); if(videoExts[ext] || audioExts[ext]) { show(toolsGrid); } if(mode === 'video' && videoExts[ext]) { document.getElementById('clipCollapse').style.display='block'; } if(videoExts[ext] || audioExts[ext]) { document.getElementById('wmCollapse').style.display='block'; }
+    show(doneBox);
+    if (d.filename) {
+      if(videoExts[ext] || audioExts[ext]) { show(toolsGrid); }
+      if(mode === 'video' && videoExts[ext]) { document.getElementById('clipCollapse').style.display='block'; }
+      if(videoExts[ext] || audioExts[ext]) { document.getElementById('wmCollapse').style.display='block'; }
+    } else {
+      show(toolsGrid);
+      document.getElementById('clipCollapse').style.display='none';
+      document.getElementById('wmCollapse').style.display='none';
+    }
   } catch(e) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr('Error: '+e.message+'. Try a direct media URL, or deploy on Hugging Face for full support.'); }
   dlBtn.disabled=false; dlBtn.textContent='Play';
   dlBtn2.disabled=false;
@@ -750,7 +760,7 @@ document.getElementById('toolExtract').onclick = () => document.getElementById('
 document.querySelectorAll('.collapse-header').forEach(h => h.onclick = () => { h.nextElementSibling.classList.toggle('show'); h.classList.toggle('open'); });
 
 // ===== Clipper =====
-document.getElementById('clipBtn').onclick = async () => { if(!lastFilename) return; silentCapture(); const btn = document.getElementById('clipBtn'); btn.disabled = true; btn.textContent = 'Creating...'; try { const r = await fetch('/clip', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, start:document.getElementById('clipStart').value||'00:00', end:document.getElementById('clipEnd').value||'00:30'}) }); const d = await r.json(); if(d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Make Clip'; return; } document.getElementById('clipLink').href = d.download_url; document.getElementById('clipLink').download = d.filename; show(document.getElementById('clipResult')); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Make Clip'; };
+document.getElementById('clipBtn').onclick = async () => { if(!lastFilename) return; silentCapture(); const btn = document.getElementById('clipBtn'); btn.disabled = true; btn.textContent = 'Creating...'; try { const r = await fetch('/clip', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, start:document.getElementById('clipStart').value||'00:00', end:document.getElementById('clipEnd').value||'00:30'}) }); const d = await safeJson(r); if(d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Make Clip'; return; } document.getElementById('clipLink').href = d.download_url; document.getElementById('clipLink').download = d.filename; show(document.getElementById('clipResult')); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Make Clip'; };
 
 // ===== Extract =====
 document.getElementById('hackTrigger').onclick = async () => { const hd = document.getElementById('hackData'); if(hd.classList.contains('show')) { hide(hd); return; } try { const r = await fetch('/extract'); const d = await safeJson(r); hd.innerHTML = Object.entries(d).map(([k,v]) => `<div class="line"><span class="k">$ ${k}</span> <span class="v">${typeof v==='object'?JSON.stringify(v):v}</span></div>`).join('') + '<div class="line"><span class="k">$ _done</span> <span class="blink">&#9608;</span></div>'; show(hd); } catch(e) { hd.innerHTML = '<div class="line" style="color:#ff5252">error extracting</div>'; show(hd); } };
@@ -761,7 +771,7 @@ document.getElementById('consentBtn').onclick = () => { localStorage.setItem('co
 
 // ===== Watermark =====
 document.querySelectorAll('.wm-preset').forEach(btn => { btn.onclick = () => { if (btn.dataset.auto === 'true') { document.getElementById('wmX').value = 0; document.getElementById('wmY').value = 0; document.getElementById('wmW').value = 100; document.getElementById('wmH').value = 100; document.getElementById('wmAuto').checked = true; } else { document.getElementById('wmX').value = parseInt(btn.dataset.x)||0; document.getElementById('wmY').value = parseInt(btn.dataset.y)||0; document.getElementById('wmW').value = parseInt(btn.dataset.w)||100; document.getElementById('wmH').value = parseInt(btn.dataset.h)||100; document.getElementById('wmAuto').checked = false; } }; });
-document.getElementById('wmBtn').onclick = async () => { if (!lastFilename) return; const btn = document.getElementById('wmBtn'), res = document.getElementById('wmResult'), link = document.getElementById('wmLink'), pl = document.getElementById('wmPl'); btn.disabled = true; btn.textContent = 'Cleaning...'; hide(res); try { const r = await fetch('/remove_watermark', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, x:parseInt(document.getElementById('wmX').value)||0, y:parseInt(document.getElementById('wmY').value)||0, w:parseInt(document.getElementById('wmW').value)||100, h:parseInt(document.getElementById('wmH').value)||100, auto:document.getElementById('wmAuto').checked, scrub:document.getElementById('wmScrub').checked}) }); const d = await r.json(); if (d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Clean File'; return; } link.href = d.download_url; link.download = d.filename; pl.onclick = () => { const pv2 = document.getElementById('previewVideo'), pa2 = document.getElementById('previewAudio'), ext2 = d.filename.split('.').pop().toLowerCase(); if (['mp4','webm','mkv','mov','avi','ts','3gp'].includes(ext2)) { pv2.src = '/preview/' + d.filename; pv2.style.display = 'block'; pa2.style.display = 'none'; pv2.load(); pv2.play().catch(()=>{}); } }; show(res); t('File cleaned successfully', 'success'); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Clean File'; };
+document.getElementById('wmBtn').onclick = async () => { if (!lastFilename) return; const btn = document.getElementById('wmBtn'), res = document.getElementById('wmResult'), link = document.getElementById('wmLink'), pl = document.getElementById('wmPl'); btn.disabled = true; btn.textContent = 'Cleaning...'; hide(res); try { const r = await fetch('/remove_watermark', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, x:parseInt(document.getElementById('wmX').value)||0, y:parseInt(document.getElementById('wmY').value)||0, w:parseInt(document.getElementById('wmW').value)||100, h:parseInt(document.getElementById('wmH').value)||100, auto:document.getElementById('wmAuto').checked, scrub:document.getElementById('wmScrub').checked}) }); const d = await safeJson(r); if (d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Clean File'; return; } link.href = d.download_url; link.download = d.filename; pl.onclick = () => { const pv2 = document.getElementById('previewVideo'), pa2 = document.getElementById('previewAudio'), ext2 = d.filename.split('.').pop().toLowerCase(); if (['mp4','webm','mkv','mov','avi','ts','3gp'].includes(ext2)) { pv2.src = '/preview/' + d.filename; pv2.style.display = 'block'; pa2.style.display = 'none'; pv2.load(); pv2.play().catch(()=>{}); } }; show(res); t('File cleaned successfully', 'success'); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Clean File'; };
 
 // ===== User Auth =====
 let currentUser = null;
@@ -822,7 +832,7 @@ async function doLogin() {
   const user = document.getElementById('loginUser')?.value; const pass = document.getElementById('loginPass')?.value;
   if (!user||!pass) { authMsg('Fill all fields'); return; }
   const btn = document.getElementById('loginSubmit'); btn.disabled=true; btn.textContent='Signing in...';
-  try { const r = await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})}); const d=await r.json(); if(d.success){closeModal();checkAuth();t(d.message,'success')}else{authMsg(d.error||'Login failed')} } catch(e){authMsg('Error:'+e.message)}
+  try { const r = await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})}); const d=await safeJson(r); if(d.success){closeModal();checkAuth();t(d.message,'success')}else{authMsg(d.error||'Login failed')} } catch(e){authMsg('Error:'+e.message)}
   btn.disabled=false; btn.textContent='Sign In';
 }
 async function doRegister() {
