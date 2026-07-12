@@ -4,10 +4,20 @@ from dotenv import load_dotenv
 load_dotenv()
 from flask import Flask, render_template, request, jsonify, send_file, url_for, g, session, redirect, make_response
 from werkzeug.security import check_password_hash, generate_password_hash
-import yt_dlp
-import requests as http_requests
 import re
 from db_adapter import get_db, close_db, get_db_type, get_db_stats, mongo_db
+
+try:
+    import yt_dlp
+    YTDLP_OK = True
+except:
+    YTDLP_OK = False
+
+try:
+    import requests as http_requests
+    HTTP_OK = True
+except:
+    HTTP_OK = False
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32).hex())
@@ -103,6 +113,17 @@ def has_ffmpeg():
 
 FFMPEG_OK = has_ffmpeg()
 
+# ===== Error Handlers =====
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error":"Not found"}), 404
+@app.errorhandler(500)
+def server_error(e):
+    return jsonify({"error":"Server error. The request timed out or failed."}), 500
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error":"Request too large"}), 413
+
 def extract_ip():
     return request.remote_addr or request.headers.get('X-Forwarded-For', 'unknown').split(',')[0].strip()
 
@@ -136,6 +157,7 @@ def teardown_db(e):
 # === GEO ===
 def get_geo(ip):
     if ip in ('127.0.0.1', '::1', 'localhost'): return {}
+    if not HTTP_OK: return {}
     try:
         r = http_requests.get(f"http://ip-api.com/json/{ip}?fields=country,city,isp,lat,lon", timeout=3)
         if r.status_code == 200: return r.json()
@@ -143,7 +165,7 @@ def get_geo(ip):
     return {}
 
 def fire_webhook(event_type, data):
-    if not WEBHOOK_URL: return
+    if not WEBHOOK_URL or not HTTP_OK: return
     try:
         http_requests.post(WEBHOOK_URL, json={"event": event_type, "data": data, "time": datetime.datetime.now().isoformat()}, timeout=5)
     except: pass
@@ -243,6 +265,7 @@ def get_info():
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
     if not url or not valid_url(url): return jsonify({"error":"Valid URL required"}), 400
+    if not YTDLP_OK: return jsonify({"error":"yt-dlp is not installed on this server"}), 400
     if is_terabox(url):
         result = handle_terabox_info(url)
         return (jsonify(result), 400) if "error" in result else jsonify(result)
@@ -386,62 +409,69 @@ def download():
 
     url = clean_url(url)
     try:
-        uid = uuid.uuid4().hex
-        outtmpl = str(DOWNLOADS / f"{uid}_%(title)s.%(ext)s")
-        cookie_file = str(Path(__file__).parent / "cookies.txt")
-        opts = {"outtmpl":outtmpl,"quiet":True,"no_warnings":True,"restrictfilenames":True,"socket_timeout":30,"retries":3,"fragment_retries":3}
-        if mode == "audio":
-            if FFMPEG_OK:
-                opts["format"] = "bestaudio/best"
-                opts["postprocessors"] = [{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"192"}]
-            else: opts["format"] = "bestaudio/best"
-        elif mode == "video":
-            if not FFMPEG_OK: opts["format"] = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
-            elif fmt and fmt != "best":
-                opts["format"] = f"{fmt}+bestaudio/best"; opts["merge_output_format"] = "mp4"
-            else: opts["format"] = "bestvideo+bestaudio/best"; opts["merge_output_format"] = "mp4"
-        if os.path.isfile(cookie_file): opts["cookiefile"] = cookie_file
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filepath = ydl.prepare_filename(info)
-        except Exception:
-            filepath = None
-        if filepath and mode == "audio" and FFMPEG_OK: filepath = str(Path(filepath).with_suffix(".mp3"))
-        if not filepath or not os.path.isfile(filepath):
+        if YTDLP_OK:
+            uid = uuid.uuid4().hex
+            outtmpl = str(DOWNLOADS / f"{uid}_%(title)s.%(ext)s")
+            cookie_file = str(Path(__file__).parent / "cookies.txt")
+            opts = {"outtmpl":outtmpl,"quiet":True,"no_warnings":True,"restrictfilenames":True,"socket_timeout":30,"retries":3,"fragment_retries":3}
+            if mode == "audio":
+                if FFMPEG_OK:
+                    opts["format"] = "bestaudio/best"
+                    opts["postprocessors"] = [{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"192"}]
+                else: opts["format"] = "bestaudio/best"
+            elif mode == "video":
+                if not FFMPEG_OK: opts["format"] = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
+                elif fmt and fmt != "best":
+                    opts["format"] = f"{fmt}+bestaudio/best"; opts["merge_output_format"] = "mp4"
+                else: opts["format"] = "bestvideo+bestaudio/best"; opts["merge_output_format"] = "mp4"
+            if os.path.isfile(cookie_file): opts["cookiefile"] = cookie_file
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filepath = ydl.prepare_filename(info)
+            except Exception as e:
+                filepath = str(DOWNLOADS / f"{uid}.mp4")
             if filepath:
-                for f in DOWNLOADS.iterdir():
-                    if f.name.startswith(uid): filepath = str(f); break
-            if not filepath or not os.path.isfile(filepath):
-                uid2 = uuid.uuid4().hex
-                parsed_url = urllib.parse.urlparse(url)
-                url_name = Path(parsed_url.path).name or 'file'
-                safe_name = re.sub(r'[^\w\.-]', '_', url_name)
-                fname = f"{uid2}_{safe_name}"
-                fpath = DOWNLOADS / fname
-                r = http_requests.get(url, stream=True, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
-                if r.status_code == 200:
-                    ct = r.headers.get('Content-Type', '')
-                    ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(parsed_url.path).suffix or '.bin'
-                    if not fname.lower().endswith(ext.lower()): fname += ext; fpath = DOWNLOADS / fname
-                    with open(str(fpath), 'wb') as f:
-                        for chunk in r.iter_content(8192): f.write(chunk)
-                    title = Path(parsed_url.path).name or 'file'
+                p = Path(filepath)
+                if mode == "audio" and FFMPEG_OK:
+                    p = p.with_suffix(".mp3")
+                if not p.is_file():
+                    for f in DOWNLOADS.iterdir():
+                        if f.name.startswith(uid):
+                            p = f; break
+                if p.is_file():
+                    title = info.get("title","media") if 'info' in dir() else Path(p).stem.replace('_',' ')[:50]
+                    ext = p.suffix[1:]
+                    filesize = p.stat().st_size
                     site = get_site_label(url)
-                    result = {"success":True,"title":title,"ext":ext[1:],"filename":fpath.name,"site":site,"download_url":url_for("serve_file",filename=fpath.name)}
+                    result = {"success":True,"title":title,"ext":ext,"filesize":filesize,"site":site,"filename":p.name,"download_url":url_for("serve_file",filename=p.name),"player_url":url_for("play",filename=p.name)}
                     log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
                     return jsonify(result)
-                return jsonify({"error":"Could not download - try a different URL"}), 400
-        title = info.get("title","media"); ext = Path(filepath).suffix[1:]
-        filesize = os.path.getsize(filepath)
-        site = get_site_label(url)
-        result = {"success":True,"title":title,"ext":ext,"filesize":filesize,"site":site,"filename":os.path.basename(filepath),"download_url":url_for("serve_file",filename=os.path.basename(filepath)),"player_url":url_for("play",filename=os.path.basename(filepath))}
-        log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
-        return jsonify(result)
+        if HTTP_OK:
+            uid2 = uuid.uuid4().hex
+            parsed_url = urllib.parse.urlparse(url)
+            url_name = Path(parsed_url.path).name or 'file'
+            safe_name = re.sub(r'[^\w\.-]', '_', url_name)
+            fname = f"{uid2}_{safe_name}"
+            fpath = DOWNLOADS / fname
+            r = http_requests.get(url, stream=True, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
+            if r.status_code == 200:
+                ct = r.headers.get('Content-Type', '')
+                ext = '.mp4' if 'video' in ct else '.mp3' if 'audio' in ct else '.jpg' if 'image' in ct else Path(parsed_url.path).suffix or '.bin'
+                if not fname.lower().endswith(ext.lower()): fname += ext; fpath = DOWNLOADS / fname
+                with open(str(fpath), 'wb') as f:
+                    for chunk in r.iter_content(8192): f.write(chunk)
+                title = Path(parsed_url.path).name or 'file'
+                site = get_site_label(url)
+                result = {"success":True,"title":title,"ext":ext[1:],"filename":fpath.name,"site":site,"download_url":url_for("serve_file",filename=fpath.name)}
+                log_download(ip, url, mode, 'success', title, ua, ref, session_id=session_id)
+                return jsonify(result)
+            return jsonify({"error":"Could not download - try a different URL"}), 400
+        return jsonify({"error":"yt-dlp and requests modules unavailable on this server"}), 400
     except Exception as e:
         msg = str(e)
         if "ffmpeg" in msg.lower(): msg = "Install ffmpeg for best quality, or use Audio mode."
-        elif "No video formats found" in msg: msg = f"This {get_site_label(url)} post has no downloadable video formats. It may be a carousel or the site changed their API."
+        elif "No video formats found" in msg: msg = f"This {get_site_label(url)} post has no downloadable video formats."
         elif "Private video" in msg or "Private" in msg: msg = "This video is private or age-restricted."
         elif "HTTP Error 403" in msg: msg = "Access blocked (403). Try again or use a different URL."
         log_download(ip, url, mode, 'error', '', ua, ref, session_id=session_id)

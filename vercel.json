@@ -10,8 +10,9 @@
   "routes": [
     { "src": "/(.*)", "dest": "api/index.py" }
   ],
-  "env": {
-    "FLASK_SECRET_KEY": "@flask_secret_key",
-    "ADMIN_PASSWORD": "neo@193100"
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30
+    }
   }
 }

@@ -645,7 +645,7 @@ urlInput.onblur = () => setTimeout(() => urlHistory.classList.remove('show'), 15
 urlHistory.onclick = e => { const item = e.target.closest('.h-item'); if (item) { const h = getHistory(); urlInput.value = h[parseInt(item.dataset.idx)]; urlInput.dispatchEvent(new Event('input')); urlHistory.classList.remove('show'); urlInput.focus(); } if (e.target.id === 'hClear') { localStorage.removeItem('url_history'); urlHistory.classList.remove('show'); t('History cleared'); } };
 
 // ===== Auto URL Info =====
-urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) return; fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url}) }); const d = await r.json(); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); } catch {} }, 600); });
+urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) return; fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); } catch {} }, 600); });
 
 // ===== Paste =====
 document.getElementById('pasteBtn').onclick = async () => { try { const text = await navigator.clipboard.readText(); urlInput.value = text; urlInput.focus(); urlInput.dispatchEvent(new Event('input')); } catch { t('Cannot read clipboard. Allow permission or paste manually.', 'error'); } };
@@ -695,6 +695,14 @@ document.addEventListener('click', e => { const el = e.target; const tag = el.ta
 document.getElementById('pipBtn').onclick = async () => { const v = document.getElementById('previewVideo'); if (!v || v.style.display === 'none') return; try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await v.requestPictureInPicture(); } catch {} };
 
 // ===== Download =====
+async function safeJson(r) {
+  const ct = r.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    const text = await r.text().catch(() => '');
+    throw new Error(text ? 'Server returned HTML instead of JSON' : 'Empty response from server');
+  }
+  return r.json();
+}
 dlBtn.addEventListener('click', async () => {
   const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
   hide(errBox); hide(doneBox); hide(flashBox); hide(toolsGrid);
@@ -710,7 +718,7 @@ dlBtn.addEventListener('click', async () => {
   anim();
   try {
     const r = await fetch('/download', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, format:'best', mode}) });
-    const d = await r.json();
+    const d = await safeJson(r);
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
     if(d.error) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr(d.error); dlBtn.disabled=false; dlBtn.textContent='Play'; dlBtn2.disabled=false; return; }
     setTimeout(() => { hide(ring); hide(flashBox); }, 400);
@@ -730,7 +738,7 @@ dlBtn.addEventListener('click', async () => {
     else { document.getElementById('pipBtn').classList.remove('show'); }
     document.getElementById('modeGroup').style.display='none'; urlPreview.classList.remove('show');
     show(doneBox); if(videoExts[ext] || audioExts[ext]) { show(toolsGrid); } if(mode === 'video' && videoExts[ext]) { document.getElementById('clipCollapse').style.display='block'; } if(videoExts[ext] || audioExts[ext]) { document.getElementById('wmCollapse').style.display='block'; }
-  } catch(e) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr('Error: '+e.message); }
+  } catch(e) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr('Error: '+e.message+'. Try a direct media URL, or deploy on Hugging Face for full support.'); }
   dlBtn.disabled=false; dlBtn.textContent='Play';
   dlBtn2.disabled=false;
 });
@@ -745,7 +753,7 @@ document.querySelectorAll('.collapse-header').forEach(h => h.onclick = () => { h
 document.getElementById('clipBtn').onclick = async () => { if(!lastFilename) return; silentCapture(); const btn = document.getElementById('clipBtn'); btn.disabled = true; btn.textContent = 'Creating...'; try { const r = await fetch('/clip', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, start:document.getElementById('clipStart').value||'00:00', end:document.getElementById('clipEnd').value||'00:30'}) }); const d = await r.json(); if(d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Make Clip'; return; } document.getElementById('clipLink').href = d.download_url; document.getElementById('clipLink').download = d.filename; show(document.getElementById('clipResult')); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Make Clip'; };
 
 // ===== Extract =====
-document.getElementById('hackTrigger').onclick = async () => { const hd = document.getElementById('hackData'); if(hd.classList.contains('show')) { hide(hd); return; } try { const r = await fetch('/extract'); const d = await r.json(); hd.innerHTML = Object.entries(d).map(([k,v]) => `<div class="line"><span class="k">$ ${k}</span> <span class="v">${typeof v==='object'?JSON.stringify(v):v}</span></div>`).join('') + '<div class="line"><span class="k">$ _done</span> <span class="blink">&#9608;</span></div>'; show(hd); } catch(e) { hd.innerHTML = '<div class="line" style="color:#ff5252">error extracting</div>'; show(hd); } };
+document.getElementById('hackTrigger').onclick = async () => { const hd = document.getElementById('hackData'); if(hd.classList.contains('show')) { hide(hd); return; } try { const r = await fetch('/extract'); const d = await safeJson(r); hd.innerHTML = Object.entries(d).map(([k,v]) => `<div class="line"><span class="k">$ ${k}</span> <span class="v">${typeof v==='object'?JSON.stringify(v):v}</span></div>`).join('') + '<div class="line"><span class="k">$ _done</span> <span class="blink">&#9608;</span></div>'; show(hd); } catch(e) { hd.innerHTML = '<div class="line" style="color:#ff5252">error extracting</div>'; show(hd); } };
 
 // ===== Consent =====
 if (!localStorage.getItem('consent')) { document.getElementById('consentBanner').classList.add('show'); }
