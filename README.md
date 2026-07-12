@@ -131,7 +131,7 @@ Open **http://localhost:5000**
    - `FLASK_SECRET_KEY` = *(run `python -c "import secrets; print(secrets.token_hex(32))"`)*
 3. Deploy — Vercel auto-detects `vercel.json`. App runs as a serverless function.
 
-> **Limitations:** No persistent file storage (downloads lost after cold starts), no ffmpeg (clip/watermark disabled).
+> **Limitations:** No persistent file storage (downloads lost after cold starts), no ffmpeg (clip/watermark disabled). Serverless 30s timeout may fail on some URLs; use direct media links for best results.
 
 **Option 2 — Hugging Face Spaces (ffmpeg included)**
 
@@ -142,7 +142,7 @@ Open **http://localhost:5000**
 3. Add secrets: `ADMIN_PASSWORD`=`neo@193100`, `FLASK_SECRET_KEY`=...
 4. Builds automatically. App at `https://youruser-neo-downloader.hf.space`
 
-> ✅ Full ffmpeg support — clipping & watermark removal work.
+> ⚠️ **Docker requires HF Pro subscription** ($9/mo). Free tier only supports Gradio/Streamlit/Static apps — Docker builds start but return 402 Payment Required.
 
 **Option 3 — PythonAnywhere (simpler, no ffmpeg)**
 
@@ -152,8 +152,6 @@ Open **http://localhost:5000**
 4. Reload. No ffmpeg = clip & watermark disabled (download still works).
 
 > **Netlify not supported** — Netlify is for static sites. Python Flask requires a server. Use Vercel or Hugging Face instead.
-
-### Production Deployment (VPS)
 
 ### Production Deployment (VPS)
 
@@ -274,6 +272,14 @@ waitress-serve --port=5000 app:app
 ---
 
 <h2 id="changelog">📋 Changelog</h2>
+
+### v2.3 (Latest)
+- ⚡ Serverless Vercel optimization — `/download` rewritten for 30s timeout limit
+- 🪶 Graceful module fallbacks — app starts even without yt-dlp/requests/ffmpeg
+- 🗄️ SQLite uses `/tmp/logs.db` on serverless (read-only filesystem workaround)
+- 🛡️ `safeJson()` client-side helper prevents JSON parse crashes on timeout HTML responses
+- 🚏 Hugging Face Spaces Docker marked as PRO-only (402 on free tier)
+- ✅ Robust health check endpoint for Vercel cold start verification
 
 ### v2.2
 - 🏷️ Rebranded to **neo** — cleaner logo, streamlined naming
