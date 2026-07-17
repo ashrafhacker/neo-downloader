@@ -17,5 +17,8 @@ dependencies = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["neo"]
+
 [tool.vercel]
 entrypoint = "neo.wsgi:app"
