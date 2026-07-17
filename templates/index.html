@@ -595,6 +595,13 @@ body::before {
           </div>
           <p class="hint">Use as <code>X-API-Key</code> header or <code>?api_key=</code> query param.</p>
         </div>
+
+        <div class="adv-divider"><span>YouTube Cookies</span></div>
+        <div class="adv-field">
+          <label>Cookies <span class="hint">(Netscape format — needed when YouTube shows a bot check)</span></label>
+          <textarea id="cookieInput" rows="3" placeholder="# Netscape HTTP Cookie File&#10;youtube.com	TRUE	/	TRUE	0	HEADER_ACCOUNT_...	..."></textarea>
+          <p class="hint">Export from a logged-in browser (EditThisCookie &rarr; Netscape format) or set the <code>YTDLP_COOKIES</code> env var. Never shared with anyone but the downloader.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -804,7 +811,7 @@ urlInput.onblur = () => setTimeout(() => urlHistory.classList.remove('show'), 15
 urlHistory.onclick = e => { const item = e.target.closest('.h-item'); if (item) { const h = getHistory(); urlInput.value = h[parseInt(item.dataset.idx)]; urlInput.dispatchEvent(new Event('input')); urlHistory.classList.remove('show'); urlInput.focus(); } if (e.target.id === 'hClear') { localStorage.removeItem('url_history'); urlHistory.classList.remove('show'); t('History cleared'); } };
 
 // ===== Auto URL Info =====
-urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
+urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
 
 // ===== Paste =====
 document.getElementById('pasteBtn').onclick = async () => { try { const text = await navigator.clipboard.readText(); urlInput.value = text; urlInput.focus(); urlInput.dispatchEvent(new Event('input')); } catch { t('Cannot read clipboard. Allow permission or paste manually.', 'error'); } };
@@ -882,6 +889,10 @@ document.addEventListener('click', e => { const el = e.target; const tag = el.ta
 document.getElementById('pipBtn').onclick = async () => { const v = document.getElementById('previewVideo'); if (!v || v.style.display === 'none') return; try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await v.requestPictureInPicture(); } catch {} };
 
 // ===== Download =====
+function getCookies() {
+  const v = document.getElementById('cookieInput')?.value || '';
+  return v.trim();
+}
 async function safeJson(r) {
   const ct = r.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
@@ -907,7 +918,8 @@ dlBtn.addEventListener('click', async () => {
     const r = await fetch('/download', { method:'POST', headers:sessHeaders(), body:JSON.stringify({
       url, format:'best', mode,
       god_mode: document.getElementById('godChk').checked,
-      preset: document.getElementById('presetSel').value || null
+      preset: document.getElementById('presetSel').value || null,
+      cookies: getCookies()
     }) });
     const d = await safeJson(r);
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
@@ -958,7 +970,7 @@ urlInput.addEventListener('input', () => {
   clearTimeout(window._qTimer);
   window._qTimer = setTimeout(async () => {
     try {
-      const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url}) });
+      const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) });
       const d = await safeJson(r);
       if (d.error) return;
       const fmts = (d.formats || []).filter(f => f.vcodec !== 'none' && f.acodec !== 'none');

@@ -112,6 +112,8 @@
 
 > **Note:** DiskWala (`diskwala.com`) is available **to logged-in users only**. Anonymous visitors are redirected to the login page when they try to fetch or download from it.
 
+> **YouTube bot-check:** YouTube increasingly blocks server-side requests ("Sign in to confirm you're not a bot"). When that happens, paste your exported YouTube cookies into the **Cookies** field (Advanced panel) or set the `YTDLP_COOKIES` env var. Export as Netscape format from a logged-in browser via the EditThisCookie extension.
+
 ### Format Support
 
 | Type | Formats |
@@ -197,6 +199,7 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 | `FLASK_SECRET_KEY` | **Required for production.** Random 64-char hex string for session signing |
 | `TERABOX_COOKIE` | Cookie string for Terabox downloads |
 | `MONGO_URI` | Optional — switch the DB from SQLite to MongoDB |
+| `YTDLP_COOKIES` | Netscape-format YouTube cookies (text). Required when YouTube bot-checks your server's requests. Serverless-safe (no file write). |
 | `PORT` | Server port (default: 5000) |
 | `FLASK_DEBUG` | Set to `1` for debug mode (default: `0`) |
 | `VERCEL` | Auto-set on Vercel; routes DB + temp dirs to `/tmp` |

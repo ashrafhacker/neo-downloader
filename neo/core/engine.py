@@ -39,6 +39,33 @@ metadata_cache = {}
 cache_lock = threading.Lock()
 CACHE_TTL = 600 # 10 minutes
 
+def _apply_cookies(opts, cookiefile=None):
+    """Attach YouTube/age-restricted auth cookies to yt-dlp options.
+
+    Priority: explicit `cookiefile` arg > YTDLP_COOKIES env var >
+    cookies.txt at the project root. Env/serverless cookies are written to a
+    temp file because yt-dlp's `cookiefile` option only accepts a path.
+    """
+    if cookiefile:
+        opts["cookiefile"] = str(cookiefile)
+        return opts
+    env_cookies = os.environ.get("YTDLP_COOKIES", "").strip()
+    if env_cookies:
+        try:
+            tmp = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, prefix="neo_cookies_"
+            )
+            tmp.write(env_cookies)
+            tmp.close()
+            opts["cookiefile"] = tmp.name
+            return opts
+        except OSError:
+            pass
+    cookie_file = Path(__file__).parent.parent.parent / "cookies.txt"
+    if cookie_file.is_file():
+        opts["cookiefile"] = str(cookie_file)
+    return opts
+
 def get_cached_info(url):
     with cache_lock:
         if url in metadata_cache:
@@ -87,8 +114,12 @@ def get_site_label(url):
     # Any other site yt-dlp can reach is treated as a generic external platform.
     return 'Other'
 
-def fetch_info(url, task_id=None):
-    """Fetches media info from URL with caching."""
+def fetch_info(url, task_id=None, cookiefile=None):
+    """Fetches media info from URL with caching.
+
+    cookiefile: optional path to a Netscape cookie file supplied per-request
+    (e.g. from the frontend Cookies field), overriding env/cookies.txt.
+    """
     cached = get_cached_info(url)
     if cached:
         return cached
@@ -107,12 +138,20 @@ def fetch_info(url, task_id=None):
         "youtube_include_hls_manifest": False,
     }
 
-    cookie_file = Path(__file__).parent.parent.parent / "cookies.txt"
-    if cookie_file.is_file():
-        opts["cookiefile"] = str(cookie_file)
+    _apply_cookies(opts, cookiefile=cookiefile)
 
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as e:
+        msg = str(e)
+        if "confirm you" in msg or "Sign in" in msg or "bot" in msg.lower():
+            raise Exception(
+                "YouTube blocked this request (bot check). Supply YouTube "
+                "cookies via the Cookies field (Advanced) or the YTDLP_COOKIES "
+                "env var, then retry."
+            )
+        raise
 
     set_cached_info(url, info)
     return info
@@ -162,7 +201,8 @@ def get_direct_url(url, mode='video'):
     return None, None, None
 
 def download_media(url, mode='video', format_id='best', task_id=None,
-                   subtitles=None, playlist=False, god_mode=False, preset=None):
+                   subtitles=None, playlist=False, god_mode=False, preset=None,
+                   cookiefile=None):
     """Downloads media from URL. Fast mode: tries direct URL first.
 
     subtitles: list of language codes (e.g. ['en','es']) to embed/download.
@@ -261,9 +301,7 @@ def download_media(url, mode='video', format_id='best', task_id=None,
             opts["format"] = "bestvideo+bestaudio/best"
             opts["merge_output_format"] = "mp4"
 
-    cookie_file = Path(__file__).parent.parent.parent / "cookies.txt"
-    if cookie_file.is_file():
-        opts["cookiefile"] = str(cookie_file)
+    _apply_cookies(opts, cookiefile=cookiefile)
 
     def progress_hook(d):
         if task_id and d['status'] == 'downloading':

@@ -33,6 +33,26 @@ def _require_login_for(url):
     return None
 
 
+def _cookie_file_from_request(data):
+    """Write per-request Netscape cookies (if any) to a temp file.
+
+    Returns the temp path or None. The temp file is intentionally left for the
+    OS to reclaim — yt-dlp only reads it during the single request.
+    """
+    cookies = (data.get("cookies") or "").strip()
+    if not cookies:
+        return None
+    try:
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, prefix="neo_req_cookies_"
+        )
+        tmp.write(cookies)
+        tmp.close()
+        return tmp.name
+    except OSError:
+        return None
+
+
 from neo.core.logger import logger
 
 api_bp = Blueprint('api', __name__)
@@ -85,8 +105,9 @@ def get_info():
     if gate:
         return gate
 
+    cookie_file = _cookie_file_from_request(data)
     try:
-        info = fetch_info(url)
+        info = fetch_info(url, cookiefile=cookie_file)
         return jsonify({"success": True, "data": info})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
@@ -110,10 +131,13 @@ def download():
     if gate:
         return gate
 
+    cookie_file = _cookie_file_from_request(data)
+
     def _run():
         return download_media(url, mode=mode, format_id=format_id,
                               subtitles=subtitles, playlist=playlist,
-                              god_mode=god_mode, preset=preset)
+                              god_mode=god_mode, preset=preset,
+                              cookiefile=cookie_file)
 
     task_id = create_task(_run)
     while True:

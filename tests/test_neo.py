@@ -517,3 +517,37 @@ def test_batch_forwards_god_mode(monkeypatch, tmp_path):
     )
     assert captured.get("concurrent_fragment_downloads") == 32
     assert captured.get("merge_output_format") == "mp3"
+
+
+# ===== Cookie plumbing =====
+def test_apply_cookies_env_var(monkeypatch, tmp_path):
+    """YTDLP_COOKIES env var is written to a temp cookiefile and applied."""
+    from neo.core import engine
+
+    monkeypatch.delenv("YTDLP_COOKIES", raising=False)
+    monkeypatch.setenv("YTDLP_COOKIES", "# Netscape\nyoutube.com\tTRUE\t/\tTRUE\t0\tX\tY\n")
+    opts = engine._apply_cookies({})
+    assert "cookiefile" in opts
+    content = Path(opts["cookiefile"]).read_text()
+    assert "youtube.com" in content
+
+
+def test_apply_cookies_explicit_override(monkeypatch, tmp_path):
+    """An explicit cookiefile path always wins over the env var."""
+    from neo.core import engine
+
+    monkeypatch.setenv("YTDLP_COOKIES", "# Netscape\nyoutube.com\tTRUE\t/\tTRUE\t0\tX\tY\n")
+    explicit = tmp_path / "mine.txt"
+    explicit.write_text("youtube.com\tTRUE\t/\tTRUE\t0\tEXPLICIT\tZ\n")
+    opts = engine._apply_cookies({}, cookiefile=str(explicit))
+    assert opts["cookiefile"] == str(explicit)
+
+
+def test_apply_cookies_no_env(monkeypatch):
+    """With no cookies available, no cookiefile key is set."""
+    from neo.core import engine
+
+    monkeypatch.delenv("YTDLP_COOKIES", raising=False)
+    # Ensure no cookies.txt exists at the resolved project root for this test.
+    opts = engine._apply_cookies({})
+    assert "cookiefile" not in opts
