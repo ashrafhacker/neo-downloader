@@ -38,6 +38,11 @@ def create_app():
     def index():
         return render_template('index.html')
 
+    @app.route('/health')
+    @app.route('/api/health')
+    def health():
+        return jsonify({"status": "ok", "service": "neo"}), 200
+
     @app.route('/captures/<filename>')
     @app.route('/screenshots/<filename>')
     def serve_media(filename):
