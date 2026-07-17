@@ -4,7 +4,10 @@ import os
 import tempfile
 import time
 
-from neo.core.engine import fetch_info, download_media, search_media, get_site_label
+from neo.core.engine import (
+    fetch_info, download_media, search_media, get_site_label,
+    validate_cookie_text, download_batch, DOWNLOADS as ENGINE_DOWNLOADS,
+)
 from neo.core.processor import clip_media, remove_watermark, erase_metadata
 from neo.core.auth_tokens import user_for_token
 from neo.core.tasks import create_task, get_task_status
@@ -36,12 +39,18 @@ def _require_login_for(url):
 def _cookie_file_from_request(data):
     """Write per-request Netscape cookies (if any) to a temp file.
 
-    Returns the temp path or None. The temp file is intentionally left for the
-    OS to reclaim — yt-dlp only reads it during the single request.
+    Returns the temp path or None. Raises a 400 with a clear message when the
+    supplied cookie text is malformed so the user is not left with a cryptic
+    yt-dlp parse error after the server timeout.
     """
     cookies = (data.get("cookies") or "").strip()
     if not cookies:
         return None
+    ok, reason = validate_cookie_text(cookies)
+    if not ok:
+        from flask import jsonify
+        # Signal the caller to surface a clean client error instead of writing.
+        raise ValueError(f"Cookie format invalid: {reason}")
     try:
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", delete=False, prefix="neo_req_cookies_"
@@ -57,15 +66,9 @@ from neo.core.logger import logger
 
 api_bp = Blueprint('api', __name__)
 
-BASE_DIR = Path(__file__).parent.parent.parent.parent
-DOWNLOADS = BASE_DIR / "downloads"
-# On serverless (Vercel) the project root is read-only; fall back to /tmp so
-# that importing this blueprint never crashes on mkdir.
-try:
-    DOWNLOADS.mkdir(exist_ok=True)
-except OSError:
-    DOWNLOADS = Path(tempfile.gettempdir()) / "downloads"
-    DOWNLOADS.mkdir(exist_ok=True)
+# Use the engine's resolved downloads dir so serve/preview read from the same
+# location yt-dlp actually wrote to (which falls back to /tmp on Vercel).
+DOWNLOADS = ENGINE_DOWNLOADS
 
 PLAYABLE = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.ts', '.3gp', '.ogg',
             '.mp3', '.wav', '.m4a', '.aac', '.flac', '.opus', '.wma'}
@@ -94,6 +97,30 @@ def _download_url(filename):
     return url_for('api.serve_file', filename=filename)
 
 
+@api_bp.route("/cookies/status", methods=["GET"])
+def cookies_status():
+    """Report whether server-side YouTube cookies are configured.
+
+    Lets the frontend show a clear 'cookies active / add cookies' indicator
+    and refuse YouTube downloads up-front instead of hitting the bot-check.
+    """
+    env_cookies = os.environ.get("YTDLP_COOKIES", "").strip()
+    cookie_file = Path(__file__).parent.parent.parent.parent / "cookies.txt"
+    active = bool(env_cookies) or cookie_file.is_file()
+    return jsonify({
+        "success": True,
+        "env_configured": bool(env_cookies),
+        "cookiefile_present": cookie_file.is_file(),
+        "active": active,
+        "message": (
+            "YouTube cookies are active." if active
+            else "No YouTube cookies configured. YouTube will block downloads "
+                 "with a bot-check. Add YTDLP_COOKIES env var or paste cookies "
+                 "in the Advanced panel."
+        ),
+    })
+
+
 @api_bp.route("/info", methods=["POST"])
 def get_info():
     data = request.get_json(silent=True) or {}
@@ -105,7 +132,10 @@ def get_info():
     if gate:
         return gate
 
-    cookie_file = _cookie_file_from_request(data)
+    try:
+        cookie_file = _cookie_file_from_request(data)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     try:
         info = fetch_info(url, cookiefile=cookie_file)
         return jsonify({"success": True, "data": info})
@@ -131,7 +161,10 @@ def download():
     if gate:
         return gate
 
-    cookie_file = _cookie_file_from_request(data)
+    try:
+        cookie_file = _cookie_file_from_request(data)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
 
     def _run():
         return download_media(url, mode=mode, format_id=format_id,
@@ -180,11 +213,14 @@ def download():
 @api_bp.route("/batch", methods=["POST"])
 def batch_download():
     data = request.get_json(silent=True) or {}
-    raw = data.get("urls") or ""
-    urls = [u.strip() for u in str(raw).replace("\r", "\n").split("\n") if u.strip()]
-    # Also accept a JSON list.
-    if not urls and isinstance(data.get("urls"), list):
-        urls = [u.strip() for u in data.get("urls") if str(u).strip()]
+    raw = data.get("urls")
+    # Accept either a JSON list or a newline/comma-separated string.
+    if isinstance(raw, list):
+        urls = [str(u).strip() for u in raw if str(u).strip()]
+    else:
+        urls = [u.strip() for u in str(raw or "").replace("\r", "\n").split("\n") if u.strip()]
+        if not urls:
+            urls = [u.strip() for u in str(raw or "").split(",") if u.strip()]
 
     if not urls:
         return jsonify({"success": False, "error": "No URLs provided"}), 400

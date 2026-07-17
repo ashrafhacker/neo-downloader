@@ -277,17 +277,23 @@ def test_batch_requires_urls(client):
     assert r.get_json()["success"] is False
 
 
-def test_batch_accepts_json_list(client):
+def test_batch_accepts_json_list(monkeypatch):
+    from neo.core import engine as _eng
+
+    def fake_download(url, **kw):
+        return {"title": "x", "ext": "mp4", "filename": "x.mp4"}
+
+    monkeypatch.setattr(_eng, "download_media", fake_download)
+    client = create_app().test_client()
     r = client.post("/batch", json={"urls": ["https://example.com/a", "https://example.com/b"]})
-    assert r.status_code in (200, 400)  # network may fail, but shape is valid
+    assert r.status_code == 200
     body = r.get_json()
-    if r.status_code == 200:
-        assert body["success"] is True
-        assert body["count"] == 2
-        assert len(body["results"]) == 2
-        for item in body["results"]:
-            assert "url" in item
-            assert "success" in item
+    assert body["success"] is True
+    assert body["count"] == 2
+    assert len(body["results"]) == 2
+    for item in body["results"]:
+        assert "url" in item
+        assert "success" in item
 
 
 def test_batch_gated_url_redirects_anonymous(client):

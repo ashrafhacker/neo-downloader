@@ -25,12 +25,22 @@ if YTDLP_OK:
         logger.warning(f"Failed to register DiskWala extractor: {_e}")
 
 DOWNLOADS = Path(__file__).parent.parent.parent / "downloads"
-# Serverless (Vercel) has a read-only root; fall back to /tmp on mkdir failure.
-try:
-    DOWNLOADS.mkdir(exist_ok=True)
-except OSError:
-    DOWNLOADS = Path(tempfile.gettempdir()) / "downloads"
-    DOWNLOADS.mkdir(exist_ok=True)
+# Serverless (Vercel) mounts the project root read-only: the directory may
+# exist (so mkdir succeeds) but writing the .part file fails with EROFS.
+# Fall back to /tmp unless the resolved downloads dir is actually writable.
+def _resolve_downloads(base):
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        probe = base / ".neo_write_test"
+        probe.write_text("ok")
+        probe.unlink()
+        return base
+    except OSError:
+        tmp = Path(tempfile.gettempdir()) / "downloads"
+        tmp.mkdir(parents=True, exist_ok=True)
+        return tmp
+
+DOWNLOADS = _resolve_downloads(DOWNLOADS)
 
 FFMPEG_OK = shutil.which("ffmpeg") is not None
 
@@ -65,6 +75,31 @@ def _apply_cookies(opts, cookiefile=None):
     if cookie_file.is_file():
         opts["cookiefile"] = str(cookie_file)
     return opts
+
+
+def validate_cookie_text(text):
+    """Return (ok, reason) for a Netscape/JSON cookie blob pasted by the user.
+
+    yt-dlp's `cookiefile` only accepts the Netscape format. JSON exports from
+    browser extensions are rejected up-front with a clear reason instead of
+    surfacing a cryptic yt-dlp parse error after the 30-60s server timeout.
+    """
+    text = (text or "").strip()
+    if not text:
+        return False, "empty"
+    # Reject obvious JSON exports ("cookies": [...]) which yt-dlp cannot read.
+    if text.lstrip().startswith("{"):
+        return False, "JSON format not supported — export as Netscape format"
+    # Netscape files begin with a comment line; a valid row has >= 7 tab/space fields.
+    rows = [ln for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    if not rows:
+        return False, "no cookie rows found"
+    bad = [i for i, ln in enumerate(rows[:3], 1)
+           if len(re.split(r"[ \t]", ln.strip())) < 6]
+    if bad:
+        return False, "malformed Netscape row (need domain, flag, path, secure, expiry, name, value)"
+    return True, "ok"
+
 
 def get_cached_info(url):
     with cache_lock:
