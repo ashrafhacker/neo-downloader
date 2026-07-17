@@ -448,6 +448,17 @@ def test_admin_setup_sets_password(client, monkeypatch):
     assert row["value"].startswith(("pbkdf2:", "scrypt:"))
 
 
+def test_admin_setup_blocked_once_password_set(client, monkeypatch):
+    # Once a password is configured, an unauthenticated caller cannot use
+    # /admin/setup to set/overwrite it.
+    monkeypatch.setattr(
+        "neo.blueprints.admin.get_admin_password", lambda: "preexistinghash"
+    )
+    r = client.post("/admin/setup", json={"password": "hacked"})
+    assert r.status_code in (301, 302)
+    assert "/admin/login" in r.headers.get("Location", "")
+
+
 # ===== God mode + preset passthrough =====
 def test_download_god_mode_preset(monkeypatch, tmp_path):
     """god_mode + preset are forwarded into the yt-dlp options."""
