@@ -465,7 +465,6 @@ body::before {
     <div class="header-actions">
       <div class="auth-section" id="authSection">
         <a class="auth-btn login" id="loginBtn" onclick="showModal('login')">Sign In</a>
-        <a class="auth-btn signup" id="signupBtn" onclick="showModal('register')">Join Free</a>
       </div>
     </div>
   </div>
@@ -484,7 +483,7 @@ body::before {
   <div class="hero-content">
     <h1><span class="gradient">Download &amp; Play Videos Instantly</span></h1>
     <p>Paste any link — YouTube, TikTok, Instagram, and 1000+ sites. Stream or download in seconds.</p>
-    <p id="guestLimit" class="limit-badge">Guest: limited downloads &middot; <a onclick="showModal('register')">Join Free</a> for unlimited</p>
+    <p id="guestLimit" class="limit-badge" style="display:none"></p>
   </div>
 
   <div class="dl-card">
@@ -740,7 +739,7 @@ body::before {
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">Is this service free? <i class="fas fa-chevron-down"></i></div>
-      <div class="faq-a">Yes, it is completely free to use with no hidden charges. You can enjoy unlimited downloads by creating a free account. Guest users have a daily download limit.</div>
+      <div class="faq-a">Yes, it is completely free to use with no hidden charges. Download from 1000+ sites instantly as a guest — no login required. DiskWala is the only platform reserved for signed-in users; create a free account to unlock it.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">How do I download from Terabox? <i class="fas fa-chevron-down"></i></div>
@@ -755,7 +754,6 @@ body::before {
     <div class="footer-links">
       <a href="/">Home</a>
       <a href="/admin" target="_blank">Admin</a>
-      <a href="#" onclick="showModal('register')">Join Free</a>
     </div>
     <div class="footer-copy">
       neo &bull; Not affiliated with any platform
@@ -811,7 +809,7 @@ urlInput.onblur = () => setTimeout(() => urlHistory.classList.remove('show'), 15
 urlHistory.onclick = e => { const item = e.target.closest('.h-item'); if (item) { const h = getHistory(); urlInput.value = h[parseInt(item.dataset.idx)]; urlInput.dispatchEvent(new Event('input')); urlHistory.classList.remove('show'); urlInput.focus(); } if (e.target.id === 'hClear') { localStorage.removeItem('url_history'); urlHistory.classList.remove('show'); t('History cleared'); } };
 
 // ===== Auto URL Info =====
-urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
+urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } if (isDiskWala(url) && !currentUser) { return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
 
 // ===== Paste =====
 document.getElementById('pasteBtn').onclick = async () => { try { const text = await navigator.clipboard.readText(); urlInput.value = text; urlInput.focus(); urlInput.dispatchEvent(new Event('input')); } catch { t('Cannot read clipboard. Allow permission or paste manually.', 'error'); } };
@@ -893,6 +891,17 @@ function getCookies() {
   const v = document.getElementById('cookieInput')?.value || '';
   return v.trim();
 }
+function isDiskWala(url) {
+  const u = (url || '').toLowerCase();
+  return u.includes('diskwala.com');
+}
+function requireLoginForDiskWala(url) {
+  if (!isDiskWala(url)) return false;
+  if (currentUser) return false;
+  showModal('login');
+  authMsg('DiskWala is available to signed-in users only. Sign in to continue.', false);
+  return true;
+}
 async function safeJson(r) {
   const ct = r.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
@@ -903,6 +912,7 @@ async function safeJson(r) {
 }
 dlBtn.addEventListener('click', async () => {
   const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
+  if (requireLoginForDiskWala(url)) return;
   hide(errBox); hide(doneBox); hide(flashBox); hide(toolsGrid);
   document.getElementById('clipCollapse').style.display='none'; document.getElementById('wmCollapse').style.display='none';
   dlBtn.disabled = true; dlBtn.textContent = '...';
@@ -967,6 +977,7 @@ function selectedSubs() { return Array.from(subSel.selectedOptions).map(o => o.v
 urlInput.addEventListener('input', () => {
   const url = urlInput.value.trim();
   if (!url || !url.startsWith('http')) return;
+  if (isDiskWala(url) && !currentUser) return;
   clearTimeout(window._qTimer);
   window._qTimer = setTimeout(async () => {
     try {
@@ -1142,7 +1153,7 @@ async function logout() {
   try{await fetch('/logout',{method:'POST'})}catch{};currentUser=null;
   sessionId = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:r&0x3|0x8).toString(16); });
   localStorage.setItem('session_id', sessionId);
-  document.getElementById('authSection').innerHTML='<a class="auth-btn login" onclick="showModal(\'login\')">Sign In</a><a class="auth-btn signup" onclick="showModal(\'register\')">Join Free</a>';
+  document.getElementById('authSection').innerHTML='<a class="auth-btn login" onclick="showModal(\'login\')">Sign In</a>';
   t('Signed out','success');
 }
 checkAuth();
