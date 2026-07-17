@@ -157,6 +157,11 @@ a:hover{text-decoration:underline}
 
 <div class="grid" id="statsGrid"></div>
 
+<div class="section-title" style="color:#00c853"># live tasks <span id="activeTaskCount" style="color:#00c853">(0)</span></div>
+<div id="liveTasks" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-height:18px;font-size:0.55rem">
+  <div style="color:#444;padding:4px">no active downloads</div>
+</div>
+
 <div class="row">
   <div class="col">
     <div class="section-title"># top sources</div>
@@ -501,6 +506,39 @@ async function deleteAll(target) {
 }
 
 document.getElementById('refreshBtn').onclick = load;
+
+// ===== Live task SSE feed =====
+function connectTaskFeed() {
+  const box = document.getElementById('liveTasks');
+  const count = document.getElementById('activeTaskCount');
+  try {
+    const es = new EventSource('/admin/events');
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type !== 'tasks') return;
+        const active = data.active || [];
+        count.textContent = `(${active.length})`;
+        if (!active.length) {
+          box.innerHTML = '<div style="color:#444;padding:4px">no active downloads</div>';
+          return;
+        }
+        box.innerHTML = active.map(t => {
+          const p = t.progress || 0;
+          const st = t.status || '?';
+          const err = t.error ? ` · ${String(t.error).substring(0,40)}` : '';
+          return `<div style="background:rgba(0,200,80,0.04);border:1px solid rgba(0,200,80,0.1);border-radius:4px;padding:4px 6px">
+            <div style="display:flex;justify-content:space-between;color:#aaa"><span>${st}${err}</span><span style="color:#00c853">${p}%</span></div>
+            <div class="bar-track" style="margin:3px 0 0"><div class="bar-fill" style="width:${p}%;background:linear-gradient(90deg,#00c853,#28ca41)"></div></div>
+          </div>`;
+        }).join('');
+      } catch {}
+    };
+    es.onerror = () => { /* auto-reconnect by browser */ };
+  } catch {}
+}
+connectTaskFeed();
+
 load();
 setInterval(load, 10000);
 </script>

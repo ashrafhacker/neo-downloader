@@ -51,6 +51,15 @@ def get_task_status(task_id):
     with task_lock:
         return tasks.get(task_id)
 
+
+def get_active_tasks():
+    """Return IDs of tasks that have not finished (pending/running)."""
+    with task_lock:
+        return [
+            tid for tid, t in tasks.items()
+            if t.get('status') in ('pending', 'running')
+        ]
+
 def cleanup_tasks(expiry_seconds=86400):
     """Removes old tasks from the registry."""
     now = time.time()

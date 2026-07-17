@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, session, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 from neo.db_adapter import get_db
+from neo.core.auth_tokens import get_token, rotate_token
 import datetime
 
 auth_bp = Blueprint('auth', __name__)
@@ -81,3 +82,21 @@ def me():
         "authenticated": True,
         "user": dict(user)
     })
+
+
+@auth_bp.route("/token", methods=["GET"])
+def token_status():
+    """Show the current user's API token (creates one if absent)."""
+    username = session.get('user_id')
+    if not username:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    return jsonify({"success": True, "token": get_token(username)})
+
+
+@auth_bp.route("/token/rotate", methods=["POST"])
+def token_rotate():
+    """Issue a new API token, invalidating the old one."""
+    username = session.get('user_id')
+    if not username:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    return jsonify({"success": True, "token": rotate_token(username)})

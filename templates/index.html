@@ -151,6 +151,8 @@ body::before {
 .action-btn.play:hover{box-shadow:0 6px 35px rgba(39,72,212,.45)}
 .action-btn.dl{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 25px rgba(16,185,129,.3)}
 .action-btn.dl:hover{box-shadow:0 6px 35px rgba(16,185,129,.45)}
+.action-btn.mp3{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 4px 25px rgba(245,158,11,.3)}
+.action-btn.mp3:hover{box-shadow:0 6px 35px rgba(245,158,11,.45)}
 
 /* URL preview */
 .url-preview{display:none;margin-top:12px;padding:12px 16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;text-align:left;animation:fadeUp .3s ease;gap:12px;align-items:center}
@@ -286,6 +288,36 @@ body::before {
 .hack-data .v{color:#888}
 .hack-data .blink{animation:blink 1s step-end infinite}
 @keyframes blink{50%{opacity:0}}
+
+/* ===== Advanced / Batch ===== */
+.adv-field{margin-bottom:10px;text-align:left}
+.adv-field > label{display:block;font-size:.65rem;color:#888;margin-bottom:4px;font-weight:500}
+.adv-field .hint{font-size:.55rem;color:#444;font-weight:400}
+.adv-field textarea,.adv-field select{width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.3);color:#e0e0f0;font-size:.78rem;outline:none;font-family:inherit;resize:vertical}
+.adv-field textarea:focus,.adv-field select:focus{border-color:rgba(99,102,241,.4)}
+.adv-row{display:flex;gap:10px}
+.adv-row .adv-field{flex:1}
+.adv-check{display:flex;align-items:center;gap:6px;font-size:.68rem;color:#888;margin-bottom:10px;cursor:pointer}
+.god-toggle{display:flex;align-items:center;gap:6px;font-size:.68rem;color:#a78bfa;margin-top:14px;cursor:pointer;font-weight:600}
+.god-toggle input{accent-color:#8b5cf6;width:14px;height:14px;cursor:pointer}
+.god-label{display:flex;align-items:center;gap:5px}
+.god-label i{color:#fbbf24;font-size:.7rem}
+.adv-btn{width:100%;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;font-weight:700;font-size:.82rem;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.adv-btn:hover{filter:brightness(1.1);box-shadow:0 6px 30px rgba(124,58,237,.35)}
+.adv-btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.batch-result{display:none;margin-top:10px;max-height:200px;overflow-y:auto;flex-direction:column;gap:4px}
+.batch-result.show{display:flex}
+.batch-result .b-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);font-size:.65rem;color:#999}
+.batch-result .b-item .b-ic{flex-shrink:0;width:14px;text-align:center}
+.batch-result .b-item.ok .b-ic{color:#00c853}
+.batch-result .b-item.err .b-ic{color:#ff5252}
+.batch-result .b-item .b-url{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adv-divider{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:#444;font-size:.6rem;text-transform:uppercase;letter-spacing:1px}
+.adv-divider::before,.adv-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06)}
+.token-row{display:flex;gap:6px}
+.token-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.3);color:#9ca3af;font-size:.7rem;outline:none;font-family:'JetBrains Mono',monospace}
+.token-copy,.token-rotate{width:34px;flex-shrink:0;border:none;border-radius:8px;background:rgba(255,255,255,.04);color:#888;cursor:pointer;font-size:.75rem;transition:all .15s}
+.token-copy:hover,.token-rotate:hover{background:rgba(99,102,241,.12);color:#fff}
 
 /* ===== Section Headers ===== */
 .section{max-width:980px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
@@ -474,8 +506,11 @@ body::before {
     </div>
 
     <div class="btn-grid">
-      <button class="action-btn play" id="dlBtn"><i class="fas fa-play"></i> Play</button>
-      <button class="action-btn dl" id="dlBtn2"><i class="fas fa-download"></i> Download</button>
+      <button class="action-btn dl" id="dlBtn2"><i class="fas fa-file-video"></i> Download MP4</button>
+      <button class="action-btn mp3" id="mp3Btn"><i class="fas fa-file-audio"></i> Download MP3</button>
+    </div>
+    <div class="btn-grid" style="margin-top:12px">
+      <button class="action-btn play" id="dlBtn" style="width:100%"><i class="fas fa-play"></i> Play (auto)</button>
     </div>
 
     <div class="modes" id="modeGroup" style="display:none">
@@ -502,6 +537,65 @@ body::before {
       <span>YouTube</span><span>Shorts</span><span>TikTok</span><span>Instagram</span>
       <span>Twitter/X</span><span>Facebook</span><span>Telegram</span><span>Terabox</span>
       <span>Reddit</span><span>Twitch</span><span>Spotify</span><span>+1000 more</span>
+    </div>
+
+    <div class="collapse-section" id="advCollapse">
+      <div class="collapse-header" id="advToggle">&#9881; Batch &amp; Advanced <span class="arrow">&#9660;</span></div>
+      <div class="collapse-body" id="advBody">
+        <div class="adv-field">
+          <label>Batch URLs <span class="hint">(one per line)</span></label>
+          <textarea id="batchUrls" rows="3" placeholder="https://youtube.com/watch?v=...&#10;https://tiktok.com/@..."></textarea>
+        </div>
+        <div class="adv-row">
+          <div class="adv-field">
+            <label>Quality</label>
+            <select id="qualitySel"><option value="best">Best</option></select>
+          </div>
+          <div class="adv-field">
+            <label>Preset</label>
+            <select id="presetSel">
+              <option value="">Auto</option>
+              <option value="best">Best (MP4)</option>
+              <option value="4k">4K (MKV)</option>
+              <option value="hdr">HDR 4K (MKV)</option>
+              <option value="audio">Audio (MP3)</option>
+            </select>
+          </div>
+        </div>
+        <div class="adv-row">
+          <div class="adv-field">
+            <label>Subtitles</label>
+            <select id="subSel" multiple>
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ar">Arabic</option>
+              <option value="hi">Hindi</option>
+            </select>
+          </div>
+          <div class="adv-field">
+            <label class="god-toggle">
+              <input type="checkbox" id="godChk">
+              <span class="god-label"><i class="fas fa-bolt"></i> GOD MODE — elite speed</span>
+            </label>
+          </div>
+        </div>
+        <label class="adv-check"><input type="checkbox" id="playlistChk"> Include full playlist</label>
+        <button class="adv-btn" id="batchBtn"><i class="fas fa-layer-group"></i> Download Batch</button>
+        <div class="batch-result" id="batchResult"></div>
+
+        <div class="adv-divider"><span>API Access</span></div>
+        <div class="adv-field">
+          <label>Your API Key</label>
+          <div class="token-row">
+            <input type="text" id="tokenInput" readonly placeholder="Sign in to generate">
+            <button class="token-copy" id="tokenCopy"><i class="fas fa-copy"></i></button>
+            <button class="token-rotate" id="tokenRotate" title="Rotate key"><i class="fas fa-sync"></i></button>
+          </div>
+          <p class="hint">Use as <code>X-API-Key</code> header or <code>?api_key=</code> query param.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -561,6 +655,7 @@ body::before {
       <label style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:.62rem;color:#555;margin-bottom:4px;cursor:pointer"><input type="checkbox" id="wmAuto"> Auto multi-zone</label>
       <label style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:.62rem;color:#555;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="wmScrub" checked> Scrub metadata &amp; traces</label>
       <button class="wm-btn" id="wmBtn">&#9998; Clean File</button>
+      <button class="wm-btn" id="wipeBtn" style="background:linear-gradient(135deg,#dc2626,#b91c1c);margin-top:6px">&#9851; Wipe ALL Metadata</button>
       <div class="wm-result" id="wmResult"><a id="wmLink" href="#">Download Clean File</a><span class="wm-pl" id="wmPl">Preview</span></div>
     </div>
   </div>
@@ -720,10 +815,19 @@ function triggerDownload(mode) {
   dlBtn.click();
 }
 
-// Make Download button trigger the same process with 'audio' mode
+// Download MP4 button -> force video mode
 dlBtn2.onclick = function() {
   const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
-  document.getElementById('modeGroup').style.display = '';
+  document.querySelectorAll('.modes label').forEach(x => x.classList.toggle('active', x.querySelector('input').value === 'video'));
+  document.querySelector('input[name="mode"][value="video"]').checked = true;
+  dlBtn.click();
+};
+
+// Download MP3 button -> force audio mode
+document.getElementById('mp3Btn').onclick = function() {
+  const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
+  document.querySelectorAll('.modes label').forEach(x => x.classList.toggle('active', x.querySelector('input').value === 'audio'));
+  document.querySelector('input[name="mode"][value="audio"]').checked = true;
   dlBtn.click();
 };
 
@@ -781,7 +885,11 @@ dlBtn.addEventListener('click', async () => {
   function anim() { if (done) return; const elapsed = (Date.now()-start)/1000; pct = Math.min(98, 100 * (1 - Math.exp(-elapsed * 0.25)) + elapsed * 0.5); setPct(pct); pctSub.textContent = Math.round(pct) + '%'; if (elapsed < 3) statusTxt.textContent = 'Processing...'; else if (elapsed < 8) statusTxt.textContent = 'Downloading...'; else statusTxt.textContent = 'Almost done...'; raf = requestAnimationFrame(anim); }
   anim();
   try {
-    const r = await fetch('/download', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, format:'best', mode}) });
+    const r = await fetch('/download', { method:'POST', headers:sessHeaders(), body:JSON.stringify({
+      url, format:'best', mode,
+      god_mode: document.getElementById('godChk').checked,
+      preset: document.getElementById('presetSel').value || null
+    }) });
     const d = await safeJson(r);
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
     if(d.error) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr(d.error); dlBtn.disabled=false; dlBtn.textContent='Play'; dlBtn2.disabled=false; return; }
@@ -817,6 +925,94 @@ dlBtn.addEventListener('click', async () => {
   dlBtn2.disabled=false;
 });
 
+// ===== Advanced / Batch =====
+document.getElementById('advToggle').onclick = () => { const b = document.getElementById('advToggle'); b.classList.toggle('open'); document.getElementById('advBody').classList.toggle('show'); };
+const qualitySel = $('#qualitySel'), subSel = $('#subSel'), playlistChk = $('#playlistChk'), batchUrls = $('#batchUrls');
+
+function selectedSubs() { return Array.from(subSel.selectedOptions).map(o => o.value); }
+
+// Populate quality options from /info when a single URL is in the box.
+urlInput.addEventListener('input', () => {
+  const url = urlInput.value.trim();
+  if (!url || !url.startsWith('http')) return;
+  clearTimeout(window._qTimer);
+  window._qTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url}) });
+      const d = await safeJson(r);
+      if (d.error) return;
+      const fmts = (d.formats || []).filter(f => f.vcodec !== 'none' && f.acodec !== 'none');
+      const seen = new Set(); const opts = ['<option value="best">Best</option>'];
+      fmts.sort((a,b) => (b.height||0) - (a.height||0));
+      for (const f of fmts) {
+        const h = f.height || (f.note ? f.note.replace(/\D/g,'') : 0);
+        const key = h + ':' + (f.ext||'');
+        if (!h || seen.has(key)) continue;
+        seen.add(key);
+        opts.push(`<option value="${f.format_id}">${h}p ${f.ext||''}</option>`);
+      }
+      qualitySel.innerHTML = opts.join('');
+    } catch {}
+  }, 700);
+});
+
+document.getElementById('batchBtn').onclick = async () => {
+  const lines = batchUrls.value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { t('Paste at least one URL', 'error'); return; }
+  const btn = document.getElementById('batchBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+  const br = $('#batchResult'); br.innerHTML = ''; br.classList.add('show');
+  for (const u of lines) {
+    const item = document.createElement('div');
+    item.className = 'b-item';
+    item.innerHTML = `<span class="b-ic"><i class="fas fa-spinner fa-spin"></i></span><span class="b-url">${u}</span>`;
+    br.appendChild(item);
+  }
+  try {
+    const r = await fetch('/batch', { method:'POST', headers:sessHeaders(), body:JSON.stringify({
+      urls: lines.join('\n'),
+      format: qualitySel.value,
+      preset: document.getElementById('presetSel').value || null,
+      subtitles: selectedSubs(),
+      playlist: playlistChk.checked,
+      god_mode: document.getElementById('godChk').checked
+    }) });
+    const d = await safeJson(r);
+    if (d.error) { t(d.error, 'error'); btn.disabled=false; btn.innerHTML='<i class="fas fa-layer-group"></i> Download Batch'; return; }
+    d.results.forEach((res, i) => {
+      const item = br.children[i]; if (!item) return;
+      item.classList.add(res.success ? 'ok' : 'err');
+      item.querySelector('.b-ic').innerHTML = res.success ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>';
+    });
+    t(`${d.count} item(s) processed`, 'success');
+  } catch(e) { t('Error: '+e.message, 'error'); }
+  btn.disabled = false; btn.innerHTML = '<i class="fas fa-layer-group"></i> Download Batch';
+};
+
+// ===== API Token =====
+async function loadToken() {
+  const inp = $('#tokenInput');
+  try {
+    const r = await fetch('/token'); const d = await safeJson(r);
+    if (d.success && d.token) inp.value = d.token;
+    else inp.value = '';
+  } catch { inp.value = ''; }
+}
+$('#tokenCopy').onclick = async () => {
+  const v = $('#tokenInput').value;
+  if (!v) { t('No token to copy — sign in first', 'error'); return; }
+  try { await navigator.clipboard.writeText(v); t('API key copied', 'success'); }
+  catch { t('Copy failed', 'error'); }
+};
+$('#tokenRotate').onclick = async () => {
+  try {
+    const r = await fetch('/token/rotate', { method:'POST', headers:{'Content-Type':'application/json'} });
+    const d = await safeJson(r);
+    if (d.success) { $('#tokenInput').value = d.token; t('API key rotated', 'success'); }
+    else t(d.error || 'Failed', 'error');
+  } catch(e) { t('Error: '+e.message, 'error'); }
+};
+
 // ===== Tools =====
 document.getElementById('toolClip').onclick = () => { document.getElementById('clipBody').classList.toggle('show'); document.getElementById('clipToggle').classList.toggle('open'); };
 document.getElementById('toolWm').onclick = () => { document.getElementById('wmBody').classList.toggle('show'); document.getElementById('wmToggle').classList.toggle('open'); };
@@ -837,6 +1033,9 @@ document.getElementById('consentBtn').onclick = () => { localStorage.setItem('co
 document.querySelectorAll('.wm-preset').forEach(btn => { btn.onclick = () => { if (btn.dataset.auto === 'true') { document.getElementById('wmX').value = 0; document.getElementById('wmY').value = 0; document.getElementById('wmW').value = 100; document.getElementById('wmH').value = 100; document.getElementById('wmAuto').checked = true; } else { document.getElementById('wmX').value = parseInt(btn.dataset.x)||0; document.getElementById('wmY').value = parseInt(btn.dataset.y)||0; document.getElementById('wmW').value = parseInt(btn.dataset.w)||100; document.getElementById('wmH').value = parseInt(btn.dataset.h)||100; document.getElementById('wmAuto').checked = false; } }; });
 document.getElementById('wmBtn').onclick = async () => { if (!lastFilename) return; const btn = document.getElementById('wmBtn'), res = document.getElementById('wmResult'), link = document.getElementById('wmLink'), pl = document.getElementById('wmPl'); btn.disabled = true; btn.textContent = 'Cleaning...'; hide(res); try { const r = await fetch('/remove_watermark', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename, x:parseInt(document.getElementById('wmX').value)||0, y:parseInt(document.getElementById('wmY').value)||0, w:parseInt(document.getElementById('wmW').value)||100, h:parseInt(document.getElementById('wmH').value)||100, auto:document.getElementById('wmAuto').checked, scrub:document.getElementById('wmScrub').checked}) }); const d = await safeJson(r); if (d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Clean File'; return; } link.href = d.download_url; link.download = d.filename; pl.onclick = () => { const pv2 = document.getElementById('previewVideo'), pa2 = document.getElementById('previewAudio'), ext2 = d.filename.split('.').pop().toLowerCase(); if (['mp4','webm','mkv','mov','avi','ts','3gp'].includes(ext2)) { pv2.src = '/preview/' + d.filename; pv2.style.display = 'block'; pa2.style.display = 'none'; pv2.load(); pv2.play().catch(()=>{}); } }; show(res); t('File cleaned successfully', 'success'); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Clean File'; };
 
+// ===== Wipe metadata =====
+document.getElementById('wipeBtn').onclick = async () => { if (!lastFilename) return; const btn = document.getElementById('wipeBtn'); btn.disabled = true; btn.textContent = 'Wiping...'; try { const r = await fetch('/wipe', { method:'POST', headers:sessHeaders(), body:JSON.stringify({filename:lastFilename}) }); const d = await safeJson(r); if (d.error) { t(d.error, 'error'); btn.disabled=false; btn.textContent='Wipe ALL Metadata'; return; } document.getElementById('wmLink').href = d.download_url; document.getElementById('wmLink').download = d.filename; show(document.getElementById('wmResult')); t('Metadata erased', 'success'); } catch(e) { t('Error: '+e.message, 'error'); } btn.disabled=false; btn.textContent='Wipe ALL Metadata'; };
+
 // ===== User Auth =====
 let currentUser = null;
 async function checkAuth() {
@@ -852,6 +1051,7 @@ async function checkAuth() {
         <div class="user-badge"><span class="ub-icon">&#128100;</span> ${d.user.username} <span style="color:#888;font-weight:400;font-size:.65rem">${d.unlimited ? '&#8734;' : d.downloads+'/?'}</span></div>
         <a class="auth-btn logout" onclick="logout()">Sign Out</a>
       `;
+      loadToken();
     }
   } catch {}
 }

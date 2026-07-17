@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify, session, Response, render_template, redirect, url_for, send_file
+from flask import Blueprint, request, jsonify, session, Response, render_template, redirect, url_for, send_file, stream_with_context
 from neo.db_adapter import get_db, get_db_stats
 from neo.core.logger import logger
 from neo.core.engine import get_site_label
+from neo.core.tasks import get_active_tasks, get_task_status
 import json
 import time
 import datetime
@@ -315,10 +316,21 @@ def delete_all():
 @admin_bp.route("/events")
 @require_admin
 def events():
+    @stream_with_context
     def event_stream():
         while True:
-            yield f"data: {json.dumps({'type': 'heartbeat', 'time': time.time()})}\n\n"
-            time.sleep(10)
+            # Snapshot current task progress and push any new/changed state.
+            active = get_active_tasks()
+            payload = {
+                "type": "tasks",
+                "time": time.time(),
+                "active": [get_task_status(tid) for tid in active],
+                "active_count": len(active),
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+            # Heartbeat so proxies don't drop an idle connection.
+            yield f": ping {int(time.time())}\n\n"
+            time.sleep(2)
     return Response(event_stream(), mimetype="text/event-stream")
 
 # ===== Static media serving =====

@@ -155,12 +155,20 @@ def get_direct_url(url, mode='video'):
 
     return None, None, None
 
-def download_media(url, mode='video', format_id='best', task_id=None):
-    """Downloads media from URL. Fast mode: tries direct URL first."""
+def download_media(url, mode='video', format_id='best', task_id=None,
+                   subtitles=None, playlist=False, god_mode=False, preset=None):
+    """Downloads media from URL. Fast mode: tries direct URL first.
+
+    subtitles: list of language codes (e.g. ['en','es']) to embed/download.
+    playlist: if True, allow yt-dlp to download the whole playlist.
+    god_mode: max-speed path — aggressive aria2c concurrency, HTTP/2,
+        parallel fragment downloads and fastest ffmpeg encode.
+    preset: 'best' | '4k' | 'hdr' | 'audio' — overrides format selection.
+    """
     # Audio mode always downloads server-side and extracts a real, playable MP3.
     # YouTube's audio-only DASH streams (m4a/opus direct URLs) are often
     # unplayable in browsers and expire quickly, so fast mode is skipped.
-    if mode != "audio":
+    if mode != "audio" and not subtitles and not playlist:
         direct_url, ext, title = get_direct_url(url, mode)
         if direct_url:
             return {
@@ -178,20 +186,45 @@ def download_media(url, mode='video', format_id='best', task_id=None):
     uid = uuid.uuid4().hex
     outtmpl = str(DOWNLOADS / f"{uid}_%(title)s.%(ext)s")
 
+    concurrent = 32 if god_mode else 16
     opts = {
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "socket_timeout": 30,
-        "retries": 3,
-        "fragment_retries": 3,
-        "concurrent_fragment_downloads": 16,
+        "retries": 10 if god_mode else 3,
+        "fragment_retries": 10 if god_mode else 3,
+        "concurrent_fragment_downloads": concurrent,
+        "http_headers": {"Connection": "keep-alive"},
     }
 
-    if shutil.which("aria2c"):
-        opts["external_downloader"] = "aria2c"
-        opts["external_downloader_args"] = ["-x", "16", "-s", "16", "-k", "1M"]
+    if not playlist:
+        opts["no_playlist"] = True
+
+    if subtitles:
+        opts["writesubtitles"] = True
+        opts["writeautomaticsub"] = True
+        opts["subtitleslangs"] = list(subtitles) + ["en"]
+        opts["subtitlesformat"] = "srt"
+        opts["postprocessors"] = opts.get("postprocessors", []) + [{
+            "key": "FFmpegEmbedSubtitle"
+        }]
+
+    aria2c = shutil.which("aria2c")
+    if aria2c:
+        # God mode maxes out aria2c split/connections for elite throughput.
+        if god_mode:
+            opts["external_downloader"] = "aria2c"
+            opts["external_downloader_args"] = [
+                "-x", "16", "-s", "64", "-k", "4M",
+                "--min-split-size=1M", "--max-tries=10",
+                "--max-connection-per-server=16", "--continue=true",
+                "--optimize-concurrent-downloads", "--http2",
+            ]
+        else:
+            opts["external_downloader"] = "aria2c"
+            opts["external_downloader_args"] = ["-x", "16", "-s", "16", "-k", "1M"]
 
     if mode == "audio":
         if FFMPEG_OK:
@@ -199,7 +232,7 @@ def download_media(url, mode='video', format_id='best', task_id=None):
             opts["postprocessors"] = [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
-                "preferredquality": "192"
+                "preferredquality": "320" if god_mode else "192"
             }]
         else:
             opts["format"] = "bestaudio/best"
@@ -209,6 +242,15 @@ def download_media(url, mode='video', format_id='best', task_id=None):
         elif format_id and format_id != "best":
             opts["format"] = f"{format_id}+bestaudio/best"
             opts["merge_output_format"] = "mp4"
+        elif preset == "4k":
+            opts["format"] = "bestvideo[height<=2160]+bestaudio/best"
+            opts["merge_output_format"] = "mkv"
+        elif preset == "hdr":
+            opts["format"] = "bestvideo[height<=2160][dynamic_range=hdr]+bestaudio/best"
+            opts["merge_output_format"] = "mkv"
+        elif preset == "audio":
+            opts["format"] = "bestaudio/best"
+            opts["merge_output_format"] = "mp3"
         else:
             opts["format"] = "bestvideo+bestaudio/best"
             opts["merge_output_format"] = "mp4"
@@ -248,11 +290,20 @@ def download_media(url, mode='video', format_id='best', task_id=None):
     if not p or not p.is_file():
         raise Exception("Download failed - file not found")
 
+    size = p.stat().st_size
+    if size > 4 * 1024 * 1024 * 1024:
+        # Keep server storage sane — refuse oversized files.
+        try:
+            p.unlink()
+        except Exception:
+            pass
+        raise Exception("File is larger than 4 GB and cannot be downloaded here. Try a lower quality or a direct download link.")
+
     return {
         "title": info.get("title", "media"),
         "filename": p.name,
         "ext": p.suffix[1:],
-        "filesize": p.stat().st_size,
+        "filesize": size,
         "site": get_site_label(url),
         "fast_mode": False
     }
@@ -284,4 +335,43 @@ def search_media(query, task_id=None):
                 "duration": entry.get("duration"),
                 "uploader": entry.get("uploader")
             })
+    return results
+
+
+def download_batch(urls, mode='video', format_id='best', subtitles=None,
+                   playlist=False, on_item=None, god_mode=False, preset=None):
+    """Downloads multiple URLs, returning a list of per-item results.
+
+    on_item(task_id, index, result_or_error) is called as each finishes.
+    Each URL is downloaded in its own worker so progress is tracked per item.
+    """
+    from neo.core.tasks import create_task, get_task_status
+
+    results = [None] * len(urls)
+
+    def worker(idx, url):
+        try:
+            res = download_media(url, mode=mode, format_id=format_id,
+                                 subtitles=subtitles, playlist=playlist,
+                                 god_mode=god_mode, preset=preset,
+                                 task_id=None)
+            results[idx] = {"url": url, "success": True, "result": res}
+        except Exception as e:
+            results[idx] = {"url": url, "success": False, "error": str(e)}
+        if on_item:
+            on_item(idx, results[idx])
+
+    tasks_ids = []
+    for idx, url in enumerate(urls):
+        tid = create_task(worker, idx, url)
+        tasks_ids.append(tid)
+
+    # Wait for all to finish.
+    for tid in tasks_ids:
+        while True:
+            st = get_task_status(tid)
+            if st and st['status'] in ('completed', 'failed'):
+                break
+            time.sleep(0.2)
+
     return results

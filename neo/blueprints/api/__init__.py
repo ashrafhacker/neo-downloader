@@ -1,12 +1,23 @@
 from flask import Blueprint, request, jsonify, url_for, send_file, render_template, session, redirect
 from pathlib import Path
 import os
+import time
 
 from neo.core.engine import fetch_info, download_media, search_media, get_site_label
-from neo.core.processor import clip_media, remove_watermark
+from neo.core.processor import clip_media, remove_watermark, erase_metadata
+from neo.core.auth_tokens import user_for_token
+from neo.core.tasks import create_task, get_task_status
 
 # Sites restricted to authenticated users only.
 _GATED_HOSTS = ("diskwala.com", "www.diskwala.com")
+
+
+def _current_user():
+    """Resolve the active user from session or X-API-Key header."""
+    if session.get('user_id'):
+        return session['user_id']
+    token = request.headers.get('X-API-Key') or request.args.get('api_key')
+    return user_for_token(token) if token else None
 
 
 def _is_gated(url):
@@ -16,7 +27,7 @@ def _is_gated(url):
 
 def _require_login_for(url):
     """Redirect anonymous users to /login when the URL is login-gated."""
-    if _is_gated(url) and not session.get("user_id"):
+    if _is_gated(url) and not _current_user():
         return redirect("/login")
     return None
 
@@ -80,6 +91,10 @@ def download():
     url = (data.get("url") or "").strip()
     mode = data.get("mode", "video")
     format_id = data.get("format", "best")
+    subtitles = data.get("subtitles") or None
+    playlist = bool(data.get("playlist", False))
+    god_mode = bool(data.get("god_mode", False))
+    preset = data.get("preset") or None
 
     if not url:
         return jsonify({"success": False, "error": "URL required"}), 400
@@ -88,12 +103,23 @@ def download():
     if gate:
         return gate
 
-    try:
-        result = download_media(url, mode=mode, format_id=format_id)
-    except Exception as e:
-        logger.error(f"Download failed for {url}: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 400
+    def _run():
+        return download_media(url, mode=mode, format_id=format_id,
+                              subtitles=subtitles, playlist=playlist,
+                              god_mode=god_mode, preset=preset)
 
+    task_id = create_task(_run)
+    while True:
+        st = get_task_status(task_id)
+        if st and st['status'] in ('completed', 'failed'):
+            break
+        time.sleep(0.2)
+
+    if st['status'] == 'failed':
+        logger.error(f"Download failed for {url}: {st.get('error')}")
+        return jsonify({"success": False, "error": st.get('error') or "Download failed"}), 400
+
+    result = st['result']
     if result.get("direct_url"):
         # Fast mode — stream directly from the CDN.
         return jsonify({
@@ -118,6 +144,42 @@ def download():
         "player_url": url_for('api.play', filename=filename),
         "filesize": result.get("filesize"),
     })
+
+
+@api_bp.route("/batch", methods=["POST"])
+def batch_download():
+    data = request.get_json(silent=True) or {}
+    raw = data.get("urls") or ""
+    urls = [u.strip() for u in str(raw).replace("\r", "\n").split("\n") if u.strip()]
+    # Also accept a JSON list.
+    if not urls and isinstance(data.get("urls"), list):
+        urls = [u.strip() for u in data.get("urls") if str(u).strip()]
+
+    if not urls:
+        return jsonify({"success": False, "error": "No URLs provided"}), 400
+
+    mode = data.get("mode", "video")
+    format_id = data.get("format", "best")
+    subtitles = data.get("subtitles") or None
+    playlist = bool(data.get("playlist", False))
+    god_mode = bool(data.get("god_mode", False))
+    preset = data.get("preset") or None
+
+    # Gate: if ANY url is login-gated, require login.
+    for u in urls:
+        gate = _require_login_for(u)
+        if gate:
+            return gate
+
+    try:
+        results = download_batch(urls, mode=mode, format_id=format_id,
+                                 subtitles=subtitles, playlist=playlist,
+                                 god_mode=god_mode, preset=preset)
+    except Exception as e:
+        logger.error(f"Batch download failed: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    return jsonify({"success": True, "count": len(results), "results": results})
 
 
 @api_bp.route("/search", methods=["POST"])
@@ -168,6 +230,26 @@ def watermark():
 
     try:
         out = remove_watermark(filename, auto=auto, scrub=scrub)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    return jsonify({
+        "success": True,
+        "filename": out["filename"],
+        "download_url": _download_url(out["filename"]),
+    })
+
+
+@api_bp.route("/wipe", methods=["POST"])
+def wipe():
+    data = request.get_json(silent=True) or {}
+    filename = safe_filename(data.get("filename", ""))
+
+    if not filename:
+        return jsonify({"success": False, "error": "Filename required"}), 400
+
+    try:
+        out = erase_metadata(filename)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 

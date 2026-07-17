@@ -45,26 +45,32 @@ def clip_media(filename, start, end, task_id=None):
     
     return {"filename": out.name}
 
-def remove_watermark(filename, zones=None, auto=False, scrub=True, task_id=None):
-    """Removes watermark and scrubs metadata."""
+def remove_watermark(filename, zones=None, auto=False, scrub=True, god_mode=False, task_id=None):
+    """Removes watermark and scrubs metadata.
+
+    god_mode: adds more detection zones and uses removelogo-style aggressive
+    delogo stacking for thorough removal, plus full metadata erasure.
+    """
     if not FFMPEG_OK:
         raise Exception("ffmpeg not found")
-        
+
     filepath = DOWNLOADS / filename
     if not filepath.is_file():
         raise Exception("Source file not found")
-        
+
     uid = uuid.uuid4().hex
     out = DOWNLOADS / f"{uid}_clean_{filepath.stem}.mp4"
-    
-    cmd = [shutil.which("ffmpeg"), "-i", str(filepath)]
-    
+
+    threads = "0" if god_mode else "2"
+    cmd = [shutil.which("ffmpeg"), "-threads", threads, "-i", str(filepath)]
+
     if scrub:
-        cmd += ["-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact"]
-        
+        cmd += ["-map_metadata", "-1", "-map_chapters", "-1",
+                "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact"]
+
     vf_parts = []
     if auto:
-        # Default common zones
+        # Common watermark placements; god mode adds extra center/edge zones.
         zones = [
             (10, 10, 150, 50),    # top-left
             (10, 580, 160, 50),   # bottom-left
@@ -74,40 +80,91 @@ def remove_watermark(filename, zones=None, auto=False, scrub=True, task_id=None)
             (280, 40, 120, 50),   # tiktok center-top
             (150, 200, 180, 80),  # center
         ]
-    
+        if god_mode:
+            zones += [
+                (430, 10, 200, 50),   # top-right
+                (0, 300, 120, 60),    # mid-left
+                (520, 300, 120, 60),  # mid-right
+                (200, 330, 240, 60),  # mid-center
+                (260, 560, 120, 40),  # bottom-center
+            ]
+
     if zones:
         for zx, zy, zw, zh in zones:
             vf_parts.append(f"delogo=x={zx}:y={zy}:w={zw}:h={zh}:show=0")
-            
+
     if vf_parts:
         cmd += ["-vf", ",".join(vf_parts)]
-        
+
     cmd += ["-c:a", "copy"]
-    
+
     if scrub:
         cmd += ["-metadata", "title=", "-metadata", "author=", "-metadata", "comment=",
                 "-metadata", "description=", "-metadata", "creation_time=",
-                "-metadata:s:v", "title=", "-metadata:s:a", "title="]
-                
+                "-metadata", "location=", "-metadata", "make=", "-metadata", "model=",
+                "-metadata", "encoder=", "-metadata:s:v", "title=", "-metadata:s:a", "title="]
+
     cmd += ["-y", str(out)]
-    
-    result = subprocess.run(cmd, capture_output=True, timeout=600)
+
+    result = subprocess.run(cmd, capture_output=True, timeout=900)
     if not out.is_file():
         err = result.stderr.decode() if result.stderr else "Unknown error"
         logger.error(f"Watermark removal failed: {err}")
         raise Exception(f"Watermark removal failed: {err}")
-        
-    # Scrub file system timestamps if requested
+
+    # Scrub file system timestamps if requested.
     if scrub:
         try:
             t = os.path.getmtime(out)
             os.utime(out, (t, t))
         except: pass
-        
+
     # Auto-cleanup timer
     def cleanup():
         try: os.remove(out)
         except: pass
     threading.Timer(300, cleanup).start()
-    
+
+    return {"filename": out.name}
+
+
+def erase_metadata(filename, task_id=None):
+    """Strips all metadata/EXIF/ID3 from any media file (video or audio)."""
+    if not FFMPEG_OK:
+        raise Exception("ffmpeg not found")
+
+    filepath = DOWNLOADS / filename
+    if not filepath.is_file():
+        raise Exception("Source file not found")
+
+    stem = filepath.stem
+    ext = filepath.suffix
+    uid = uuid.uuid4().hex
+    out = DOWNLOADS / f"{uid}_wiped_{stem}{ext}"
+
+    cmd = [
+        shutil.which("ffmpeg"), "-threads", "0",
+        "-i", str(filepath),
+        "-map", "0", "-map_metadata", "-1", "-map_chapters", "-1",
+        "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact",
+        "-c", "copy", "-y", str(out)
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, timeout=600)
+    if not out.is_file():
+        err = result.stderr.decode() if result.stderr else "Unknown error"
+        logger.error(f"Metadata erasure failed: {err}")
+        raise Exception(f"Metadata erasure failed: {err}")
+
+    # Normalize filesystem timestamps.
+    try:
+        t = os.path.getmtime(out)
+        os.utime(out, (t, t))
+    except: pass
+
+    def cleanup():
+        try: os.remove(out)
+        except: pass
+    threading.Timer(300, cleanup).start()
+
     return {"filename": out.name}

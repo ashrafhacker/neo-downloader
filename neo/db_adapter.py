@@ -96,6 +96,11 @@ class SQLiteDB:
                     self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
                 except:
                     pass
+        # Add api_token column to users (for programmatic access).
+        try:
+            self.conn.execute("ALTER TABLE users ADD COLUMN api_token TEXT")
+        except:
+            pass
         self.conn.commit()
 
     def execute(self, sql, params=None):
