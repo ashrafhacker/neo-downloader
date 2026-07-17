@@ -130,10 +130,18 @@ def test_auth_register_login_logout_me(client):
     assert r.status_code == 401
 
 
+def _setup_admin(client):
+    # No ADMIN_PASSWORD in test env: complete first-run setup to unlock panel.
+    # Clear any lingering hash from a prior test (tests share one DB file).
+    from neo.db_adapter import get_db
+    get_db().execute("DELETE FROM settings WHERE key='admin_password_hash'")
+    get_db().commit()
+    client.post("/admin/setup", json={"password": "testpass"})
+
+
 def test_admin_dev_mode_access(client):
-    # With no ADMIN_PASSWORD and no stored hash, admin is unlocked (dev mode).
-    # Hit login first to establish the session (dev mode auto-authenticates).
-    client.get("/admin/login", follow_redirects=True)
+    # With no ADMIN_PASSWORD set, admin requires a one-time setup, then unlocks.
+    _setup_admin(client)
 
     r = client.get("/admin/")
     assert r.status_code == 200
@@ -161,14 +169,14 @@ def test_admin_dev_mode_access(client):
 
 
 def test_admin_delete_all(client):
-    client.get("/admin/login", follow_redirects=True)
+    _setup_admin(client)
     r = client.post("/admin/delete-all", json={"target": "all"})
     assert r.status_code == 200
     assert r.get_json()["success"] is True
 
 
 def test_admin_settings_pages(client):
-    client.get("/admin/login", follow_redirects=True)
+    _setup_admin(client)
     r = client.get("/admin/settings")
     assert r.status_code == 200
     assert b"settings" in r.data.lower()
@@ -296,6 +304,33 @@ def test_batch_accepts_json_list(monkeypatch):
         assert "success" in item
 
 
+def test_youtube_stream_rejects_non_youtube(client):
+    r = client.post("/youtube/stream", json={"url": "https://example.com/a"})
+    assert r.status_code == 400
+    assert r.get_json()["success"] is False
+
+
+def test_youtube_stream_handles_unreachable_piped(client, monkeypatch):
+    # If Piped can't resolve, the route returns a clear 502, not a crash.
+    from neo.core import engine as _eng
+    monkeypatch.setattr(_eng, "get_youtube_stream", lambda url, mode="video": (None, None, None))
+    r = client.post("/youtube/stream", json={"url": "https://youtube.com/watch?v=abc123"})
+    assert r.status_code == 502
+    assert r.get_json()["success"] is False
+
+
+def test_youtube_stream_returns_save_url(client, monkeypatch):
+    from neo.blueprints import api as _api
+    monkeypatch.setattr(_api, "get_youtube_stream",
+                        lambda url, mode="video": ("https://cdn.example/vid.mp4", "My Title", "mp4"))
+    r = client.post("/youtube/stream", json={"url": "https://youtube.com/watch?v=abc123", "mode": "video"})
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["success"] is True
+    assert body["stream_url"].startswith("https://")
+    assert "/save?url=" in body["save_url"]
+
+
 def test_batch_gated_url_redirects_anonymous(client):
     # Any gated URL in the batch must force a login redirect.
     r = client.post("/batch", json={
@@ -346,10 +381,71 @@ def test_oversized_file_rejected(monkeypatch, tmp_path):
 
 # ===== Admin SSE feed =====
 def test_admin_events_sse(client):
-    client.get("/admin/login", follow_redirects=True)
+    _setup_admin(client)
     r = client.get("/admin/events")
     assert r.status_code == 200
     assert "text/event-stream" in r.content_type
+
+
+# ===== Link history =====
+def test_links_recorded_on_info_and_listed(client, monkeypatch):
+    from neo.blueprints import api as _api
+
+    def fake_info(url, cookiefile=None):
+        return {"title": "Demo", "url": url}
+    monkeypatch.setattr(_api, "fetch_info", fake_info)
+
+    # A paste/view records a link.
+    r = client.post("/info", json={"url": "https://example.com/clip"})
+    assert r.status_code == 200
+    assert r.get_json()["success"] is True
+
+    # Login-free dev admin is unavailable here; the links endpoint is gated,
+    # so check the DB directly via the adapter.
+    from neo.db_adapter import get_db
+    rows = get_db().execute(
+        "SELECT url, action FROM links WHERE url=?", ("https://example.com/clip",)
+    ).fetchall()
+    assert len(rows) == 1
+    assert rows[0]["action"] == "view"
+
+
+def test_admin_links_endpoint_ready(client):
+    # The /admin/links route must exist (gated). We just assert it responds
+    # (401 unauthorized is fine — it proves the route is wired).
+    r = client.get("/admin/links")
+    assert r.status_code in (200, 401, 302)
+
+
+# ===== Admin setup lock =====
+def test_admin_setup_required_without_password(client, monkeypatch):
+    # When no ADMIN_PASSWORD and no stored hash, /admin/login must redirect
+    # to the setup page instead of opening the panel.
+    monkeypatch.setattr(
+        "neo.blueprints.admin.get_admin_password", lambda: None
+    )
+    r = client.get("/admin/login")
+    assert r.status_code in (301, 302)
+    assert "/admin/setup" in r.headers.get("Location", "")
+
+
+def test_admin_setup_sets_password(client, monkeypatch):
+    monkeypatch.setattr(
+        "neo.blueprints.admin.get_admin_password", lambda: None
+    )
+    from neo.db_adapter import get_db
+    get_db().execute("DELETE FROM settings WHERE key='admin_password_hash'")
+    get_db().commit()
+    r = client.post("/admin/setup", json={"password": "secret123"})
+    assert r.status_code == 200
+    assert r.get_json()["success"] is True
+    # After setup, the gate should now report a password is configured.
+    from neo.db_adapter import get_db
+    row = get_db().execute(
+        "SELECT value FROM settings WHERE key='admin_password_hash'"
+    ).fetchone()
+    assert row is not None
+    assert row["value"].startswith(("pbkdf2:", "scrypt:"))
 
 
 # ===== God mode + preset passthrough =====

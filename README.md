@@ -112,7 +112,7 @@
 
 > **Note:** DiskWala (`diskwala.com`) is available **to logged-in users only**. Anonymous visitors are redirected to the login page when they try to fetch or download from it.
 
-> **YouTube bot-check:** YouTube increasingly blocks server-side requests ("Sign in to confirm you're not a bot"). When that happens, paste your exported YouTube cookies into the **Cookies** field (Advanced panel) or set the `YTDLP_COOKIES` env var. Export as Netscape format from a logged-in browser via the EditThisCookie extension.
+> **YouTube on cloud hosts (Vercel, etc.):** YouTube aggressively bot-checks datacenter IPs, so server-side downloads there often fail with "Sign in to confirm you're not a bot." neo handles this automatically with a **server-free fallback**: when a YouTube request is blocked, it resolves the stream through a public [Piped](https://piped.video) instance and streams the bytes via the same-origin `/save` proxy — your server never contacts YouTube, so the bot-check can't occur. For best results on YouTube, deploy on **Hugging Face Spaces** (stable IP, ffmpeg included) and/or set `YTDLP_COOKIES`. Export YouTube cookies as Netscape format from a logged-in browser via the EditThisCookie extension.
 
 ### Format Support
 

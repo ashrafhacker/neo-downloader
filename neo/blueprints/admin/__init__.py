@@ -77,9 +77,8 @@ def login():
 
     pwd_hash = get_admin_password()
     if not pwd_hash:
-        # No password set — dev mode (matches root app behavior).
-        session['admin_authenticated'] = True
-        return redirect(url_for('admin.dashboard'))
+        # No password configured yet — force setup instead of opening the panel.
+        return redirect(url_for('admin.setup'))
 
     if request.method == "POST":
         pwd = request.form.get("password", "")
@@ -88,6 +87,30 @@ def login():
             return redirect(url_for('admin.dashboard'))
         return render_template("admin_login.html", error="Invalid password")
     return render_template("admin_login.html")
+
+
+@admin_bp.route("/setup", methods=["GET", "POST"])
+def setup():
+    """First-run password setup when no admin password is configured.
+
+    Prevents an open admin panel on public deploys where ADMIN_PASSWORD was
+    not set and the DB has no password hash yet.
+    """
+    if get_admin_password():
+        return redirect(url_for('admin.login'))
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        new_pwd = data.get("password", (request.form.get("password") or ""))
+        if len(new_pwd) < 4:
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"success": False, "error": "Password must be at least 4 characters"}), 400
+            return render_template("admin_setup.html", error="Password must be at least 4 characters")
+        set_admin_password_hash(generate_password_hash(new_pwd))
+        session['admin_authenticated'] = True
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": True})
+        return redirect(url_for('admin.dashboard'))
+    return render_template("admin_setup.html")
 
 @admin_bp.route("/logout")
 def logout():
@@ -216,6 +239,19 @@ def user_detail(session_id):
     captures = db.execute("SELECT * FROM captures WHERE session_id=? ORDER BY id DESC LIMIT 200", (session_id,)).fetchall()
     keys = db.execute("SELECT * FROM keystrokes WHERE session_id=? ORDER BY id DESC LIMIT 100", (session_id,)).fetchall()
     return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures], "keystrokes": [dict(r) for r in keys]})
+
+@admin_bp.route("/links")
+@require_admin
+def links():
+    db = get_db()
+    rows = db.execute("SELECT * FROM links ORDER BY id DESC LIMIT 1000").fetchall()
+    # Url-shorten for compact display while keeping full value client-side.
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["site"] = get_site_label(d.get("url", ""))
+        out.append(d)
+    return jsonify({"success": True, "data": out})
 
 @admin_bp.route("/logs")
 @require_admin

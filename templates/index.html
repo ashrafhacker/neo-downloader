@@ -894,6 +894,33 @@ function isYouTube(url) {
   const u = (url || '').toLowerCase();
   return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('youtube-nocookie.com');
 }
+// Server-free YouTube path: a Piped instance resolves the stream, our
+// same-origin /save proxy fetches the bytes. Our server never hits YouTube,
+// so the bot-check can't occur.
+async function youtubeFallback(url, mode) {
+  flashSub.textContent = 'Resolving via fallback…'; show(flashBox); show(ring); setPct(20);
+  const r = await fetch('/youtube/stream', {
+    method:'POST', headers:sessHeaders(),
+    body:JSON.stringify({ url, mode: mode === 'audio' ? 'audio' : 'video' })
+  });
+  const d = await safeJson(r);
+  if (!d.success || !d.save_url) throw new Error(d.error || 'Fallback failed');
+  setPct(100); hide(ring); hide(flashBox);
+  // Trigger the same-origin download through /save (CORS-safe).
+  const a = document.createElement('a');
+  a.href = d.save_url; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+  doneTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'…' : d.title || 'YouTube';
+  doneSub.textContent = (d.ext||'').toUpperCase();
+  document.getElementById('extBadge').textContent = (d.ext||'').toUpperCase() + ' · YouTube (fallback)';
+  document.getElementById('doneSize').textContent = '';
+  const pv = document.getElementById('previewVideo'), pa = document.getElementById('previewAudio');
+  pv.style.display='none'; pv.removeAttribute('src'); pa.style.display='none'; pa.removeAttribute('src');
+  document.getElementById('pipBtn').classList.remove('show');
+  const doneLink = document.getElementById('doneLink');
+  doneLink.href = d.save_url; doneLink.download = '';
+  show(doneBox);
+  t('Download started via fallback (no bot-check).', 'success');
+}
 function requireLoginForDiskWala(url) {
   if (!isDiskWala(url)) return false;
   if (currentUser) return false;
@@ -912,12 +939,9 @@ async function safeJson(r) {
 dlBtn.addEventListener('click', async () => {
   const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
   if (requireLoginForDiskWala(url)) return;
-  // YouTube on cloud hosts always bot-checks; refuse up-front without cookies
-  // instead of burning the 30-60s server timeout on a guaranteed failure.
-  if (isYouTube(url) && !window._cookiesActive && !getCookies()) {
-    showErr('YouTube is blocking this server (bot check). Paste your YouTube cookies in Advanced ▸ YouTube Cookies, or set the YTDLP_COOKIES env var, then retry.');
-    return;
-  }
+  // YouTube on cloud hosts usually bot-checks; we no longer block up-front —
+  // the server tries, and on failure we transparently use the Piped fallback
+  // (server-free), so the user never sees a bot-check error.
   hide(errBox); hide(doneBox); hide(flashBox); hide(toolsGrid);
   document.getElementById('clipCollapse').style.display='none'; document.getElementById('wmCollapse').style.display='none';
   dlBtn.disabled = true; dlBtn.textContent = '...';
@@ -937,7 +961,16 @@ dlBtn.addEventListener('click', async () => {
     }) });
     const d = await safeJson(r);
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
-    if(d.error) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr(d.error); dlBtn.disabled=false; dlBtn.textContent='Download'; return; }
+    if(d.error) {
+      done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox);
+      // YouTube bot-check on a cloud IP: try the server-free Piped fallback
+      // so the user never gets stuck on the error.
+      if (isYouTube(url) && /bot|confirm you|Sign in|blocked/i.test(d.error)) {
+        try { await youtubeFallback(url, mode); } catch(e) { showErr(d.error); }
+        dlBtn.disabled=false; dlBtn.textContent='Download'; return;
+      }
+      showErr(d.error); dlBtn.disabled=false; dlBtn.textContent='Download'; return;
+    }
     setTimeout(() => { hide(ring); hide(flashBox); }, 400);
     lastFilename = d.filename || ''; addHistory(url);
     doneTitle.textContent = d.title && d.title.length > 60 ? d.title.slice(0,60)+'...' : d.title || 'Untitled';

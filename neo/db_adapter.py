@@ -4,6 +4,8 @@ import os, sqlite3, datetime, json
 from pathlib import Path
 from flask import g
 
+from neo.core.logger import logger
+
 DB_PATH = (
     Path("/tmp/logs.db")
     if os.environ.get("VERCEL")
@@ -78,6 +80,11 @@ class SQLiteDB:
             );
             CREATE TABLE IF NOT EXISTS settings(
                 key TEXT PRIMARY KEY, value TEXT
+            );
+            CREATE TABLE IF NOT EXISTS links(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                time TEXT, ip TEXT, url TEXT, action TEXT,
+                mode TEXT, status TEXT, title TEXT, session_id TEXT
             );
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +181,7 @@ class MongoDB:
             'screenshots': ['time','session_id','ip','filename','user_agent'],
             'clicks': ['time','session_id','ip','tag','text','x','y','page'],
             'settings': ['key','value'],
+            'links': ['time','ip','url','action','mode','status','title','session_id'],
             'users': ['username','email','password_hash','created_at','last_login','is_active','download_limit'],
         }
         # Detect from params length
@@ -273,6 +281,24 @@ def close_db(e=None):
 def get_db_type():
     """Return 'MongoDB' or 'SQLite' for display."""
     return 'MongoDB' if mongo_db else 'SQLite'
+
+
+def record_link(url, action="view", mode="", status="", title="", ip="", session_id=""):
+    """Persist every pasted / downloaded URL into the links history.
+
+    action: 'view' (info fetch / paste) or 'download'.
+    """
+    try:
+        db = get_db()
+        db.execute(
+            "INSERT INTO links(time,ip,url,action,mode,status,title,session_id) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (datetime.datetime.now(datetime.timezone.utc).isoformat(), ip, url, action,
+             mode, status, title, session_id),
+        )
+        db.commit()
+    except Exception as e:  # pragma: no cover - non-fatal logging
+        logger.warning(f"record_link failed: {e}")
 
 
 def get_db_stats():

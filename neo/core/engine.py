@@ -203,6 +203,75 @@ def _extract_info_for_download(url, opts):
         info = ydl.extract_info(url, download=True)
     return info
 
+
+def _youtube_id(url):
+    """Extract the 11-char YouTube video id from any YouTube URL."""
+    u = url.split("?")[0].rstrip("/")
+    m = re.search(r"(?:v=|youtu\.be/|shorts/|embed/)([A-Za-z0-9_-]{11})", url)
+    if m:
+        return m.group(1)
+    m = re.search(r"/([A-Za-z0-9_-]{11})(?:[/?]|$)", u)
+    return m.group(1) if m else None
+
+
+# Public Piped instances (community-run YouTube front-ends). They fetch from
+# YouTube on THEIR infrastructure, so our server never triggers YouTube's
+# bot-check — this is the reliable fallback when yt-dlp is blocked.
+_PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://api.piped.projectsegfau.lt",
+    "https://pipedapi.adminforge.de",
+]
+
+
+def get_youtube_stream(url, mode="video"):
+    """Resolve a YouTube stream via Piped (no server-side YouTube contact).
+
+    Returns (stream_url, title, ext) or (None, None, None) if unavailable.
+    The returned URL is a direct CDN link the browser can fetch via our
+    same-origin /save proxy, bypassing the bot-check entirely.
+    """
+    vid = _youtube_id(url)
+    if not vid:
+        return None, None, None
+    import urllib.request
+    import json as _json
+    last_err = None
+    for base in _PIPED_INSTANCES:
+        try:
+            req = urllib.request.Request(
+                f"{base}/streams/{vid}",
+                headers={"User-Agent": "Mozilla/5.0 neo", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = _json.loads(r.read().decode("utf-8"))
+            title = data.get("title", "YouTube")
+            # videoStreams: combined; audioStreams: audio-only.
+            if mode == "audio":
+                streams = data.get("audioStreams") or []
+                streams = sorted(streams, key=lambda s: (s.get("bitrate") or 0), reverse=True)
+            else:
+                streams = data.get("videoStreams") or []
+                # Prefer combined (hasAudio) mp4, then any combined.
+                combined = [s for s in streams if s.get("hasAudio")]
+                combined = sorted(combined, key=lambda s: (s.get("height") or 0), reverse=True)
+                streams = combined or streams
+            if not streams:
+                continue
+            best = streams[0]
+            surl = best.get("url")
+            if not surl:
+                continue
+            ext = "mp3" if mode == "audio" else (best.get("format") or "mp4").split("/")[-1].split(";")[0]
+            if ext == "webm":
+                ext = "mp4"
+            return surl, title, ext
+        except Exception as e:
+            last_err = e
+            continue
+    logger.warning(f"Piped stream resolution failed for {vid}: {last_err}")
+    return None, None, None
+
 def get_direct_url(url, mode='video'):
     """Tries to get a direct CDN URL to bypass server download."""
     try:

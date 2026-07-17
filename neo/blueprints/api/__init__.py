@@ -3,14 +3,17 @@ from pathlib import Path
 import os
 import tempfile
 import time
+import urllib.parse
 
 from neo.core.engine import (
     fetch_info, download_media, search_media, get_site_label,
-    validate_cookie_text, download_batch, DOWNLOADS as ENGINE_DOWNLOADS,
+    validate_cookie_text, download_batch, get_youtube_stream,
+    DOWNLOADS as ENGINE_DOWNLOADS,
 )
 from neo.core.processor import clip_media, remove_watermark, erase_metadata
 from neo.core.auth_tokens import user_for_token
 from neo.core.tasks import create_task, get_task_status
+from neo.db_adapter import record_link
 
 # Sites restricted to authenticated users only.
 _GATED_HOSTS = ("diskwala.com", "www.diskwala.com")
@@ -121,6 +124,39 @@ def cookies_status():
     })
 
 
+@api_bp.route("/youtube/stream", methods=["POST"])
+def youtube_stream():
+    """Resolve a YouTube stream WITHOUT contacting YouTube from our server.
+
+    Uses a public Piped instance so Vercel's datacenter IP never trips
+    YouTube's bot-check. Returns a direct CDN url the browser fetches via
+    the same-origin /save proxy. Mode: 'video' (default) or 'audio'.
+    """
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    mode = data.get("mode", "video")
+    if not url or "youtube" not in url.lower():
+        return jsonify({"success": False, "error": "Not a YouTube URL"}), 400
+    try:
+        stream_url, title, ext = get_youtube_stream(url, mode=mode)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    if not stream_url:
+        return jsonify({
+            "success": False,
+            "error": "Could not resolve a YouTube stream via fallback. "
+                     "Try setting YTDLP_COOKIES or deploy on Hugging Face Spaces.",
+        }), 502
+    return jsonify({
+        "success": True,
+        "title": title,
+        "ext": ext,
+        "stream_url": stream_url,
+        "save_url": "/save?url=" + urllib.parse.quote(stream_url, safe="") +
+                   "&name=" + urllib.parse.quote((title or "youtube") + "." + ext),
+    })
+
+
 @api_bp.route("/info", methods=["POST"])
 def get_info():
     data = request.get_json(silent=True) or {}
@@ -138,8 +174,14 @@ def get_info():
         return jsonify({"success": False, "error": str(e)}), 400
     try:
         info = fetch_info(url, cookiefile=cookie_file)
+        record_link(url, action="view", mode=data.get("mode", "video"),
+                    title=info.get("title", ""), ip=request.remote_addr,
+                    session_id=session.get("session_id", ""))
         return jsonify({"success": True, "data": info})
     except Exception as e:
+        record_link(url, action="view", mode=data.get("mode", "video"),
+                    status="error", ip=request.remote_addr,
+                    session_id=session.get("session_id", ""))
         return jsonify({"success": False, "error": str(e)}), 400
 
 
@@ -181,11 +223,16 @@ def download():
 
     if st['status'] == 'failed':
         logger.error(f"Download failed for {url}: {st.get('error')}")
+        record_link(url, action="download", mode=mode, status="error",
+                    ip=request.remote_addr, session_id=session.get("session_id", ""))
         return jsonify({"success": False, "error": st.get('error') or "Download failed"}), 400
 
     result = st['result']
     if result.get("direct_url"):
         # Fast mode — stream directly from the CDN.
+        record_link(url, action="download", mode=mode, status="success",
+                    title=result.get("title"), ip=request.remote_addr,
+                    session_id=session.get("session_id", ""))
         return jsonify({
             "success": True,
             "title": result.get("title"),
@@ -196,8 +243,13 @@ def download():
 
     filename = result.get("filename")
     if not filename:
+        record_link(url, action="download", mode=mode, status="error",
+                    ip=request.remote_addr, session_id=session.get("session_id", ""))
         return jsonify({"success": False, "error": "Download produced no file"}), 500
 
+    record_link(url, action="download", mode=mode, status="success",
+                title=result.get("title"), ip=request.remote_addr,
+                session_id=session.get("session_id", ""))
     return jsonify({
         "success": True,
         "title": result.get("title"),
@@ -244,7 +296,16 @@ def batch_download():
                                  god_mode=god_mode, preset=preset)
     except Exception as e:
         logger.error(f"Batch download failed: {e}", exc_info=True)
+        for u in urls:
+            record_link(u, action="download", mode=mode, status="error",
+                        ip=request.remote_addr, session_id=session.get("session_id", ""))
         return jsonify({"success": False, "error": str(e)}), 400
+
+    for res in results:
+        u = res.get("url", "")
+        record_link(u, action="download", mode=mode,
+                    status="success" if res.get("success") else "error",
+                    ip=request.remote_addr, session_id=session.get("session_id", ""))
 
     return jsonify({"success": True, "count": len(results), "results": results})
 
