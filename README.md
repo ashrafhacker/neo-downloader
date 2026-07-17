@@ -60,6 +60,8 @@
 
 > Any other public site yt-dlp can reach is handled automatically as a generic external platform — just paste the link.
 
+> **Note:** DiskWala (`diskwala.com`) is available **to logged-in users only**. Anonymous visitors are redirected to the login page when they try to fetch or download from it.
+
 ### Format Support
 
 | Type | Formats |

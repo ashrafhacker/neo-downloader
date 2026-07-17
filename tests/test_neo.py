@@ -195,3 +195,22 @@ def test_serve_path_traversal_blocked(client):
 def test_media_serve_invalid_filename(client):
     r = client.get("/captures/..%2f..%2fsecret")
     assert r.status_code in (400, 403, 404)
+
+
+def test_diskwala_requires_login_anonymous(client):
+    # Anonymous users hitting a diskwala URL must be redirected to /login.
+    r = client.post("/info", json={"url": "https://www.diskwala.com/watch/abc"})
+    assert r.status_code in (301, 302)
+    assert "/login" in r.headers.get("Location", "")
+
+
+def test_diskwala_allowed_when_logged_in(client):
+    # After login, the gate passes (download proceeds; will fail only on the
+    # network/extraction step, not on the auth gate).
+    client.post("/register", json={
+        "username": "dwuser", "email": "dw@example.com", "password": "secret123"
+    })
+    r = client.post("/info", json={"url": "https://www.diskwala.com/watch/abc"})
+    # Not a redirect -> gate passed; extraction may still fail offline.
+    assert r.status_code != 302
+    assert "/login" not in (r.headers.get("Location", ""))

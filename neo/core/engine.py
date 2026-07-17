@@ -14,6 +14,15 @@ try:
 except ImportError:
     YTDLP_OK = False
 
+# Register the custom diskwala.com extractor so its URLs flow through the
+# standard player like any other platform.
+if YTDLP_OK:
+    try:
+        from neo.core.extractors.diskwala import register as _register_diskwala
+        _register_diskwala()
+    except Exception as _e:  # pragma: no cover - non-fatal
+        logger.warning(f"Failed to register DiskWala extractor: {_e}")
+
 DOWNLOADS = Path(__file__).parent.parent.parent / "downloads"
 DOWNLOADS.mkdir(exist_ok=True)
 
@@ -68,6 +77,7 @@ def get_site_label(url):
     if 'vk.com' in u or 'vk.ru' in u: return 'VK'
     if 'xvideos' in u: return 'Xvideos'
     if 'pinterest' in u: return 'Pinterest'
+    if 'diskwala' in u: return 'DiskWala'
     # Any other site yt-dlp can reach is treated as a generic external platform.
     return 'Other'
 

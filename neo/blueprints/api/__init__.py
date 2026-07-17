@@ -1,9 +1,26 @@
-from flask import Blueprint, request, jsonify, url_for, send_file, render_template
+from flask import Blueprint, request, jsonify, url_for, send_file, render_template, session, redirect
 from pathlib import Path
 import os
 
 from neo.core.engine import fetch_info, download_media, search_media, get_site_label
 from neo.core.processor import clip_media, remove_watermark
+
+# Sites restricted to authenticated users only.
+_GATED_HOSTS = ("diskwala.com", "www.diskwala.com")
+
+
+def _is_gated(url):
+    u = (url or "").lower()
+    return any(h in u for h in _GATED_HOSTS)
+
+
+def _require_login_for(url):
+    """Redirect anonymous users to /login when the URL is login-gated."""
+    if _is_gated(url) and not session.get("user_id"):
+        return redirect("/login")
+    return None
+
+
 from neo.core.logger import logger
 
 api_bp = Blueprint('api', __name__)
@@ -46,6 +63,10 @@ def get_info():
     if not url:
         return jsonify({"success": False, "error": "URL required"}), 400
 
+    gate = _require_login_for(url)
+    if gate:
+        return gate
+
     try:
         info = fetch_info(url)
         return jsonify({"success": True, "data": info})
@@ -62,6 +83,10 @@ def download():
 
     if not url:
         return jsonify({"success": False, "error": "URL required"}), 400
+
+    gate = _require_login_for(url)
+    if gate:
+        return gate
 
     try:
         result = download_media(url, mode=mode, format_id=format_id)

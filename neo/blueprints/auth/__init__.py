@@ -1,9 +1,15 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 from neo.db_adapter import get_db
 import datetime
 
 auth_bp = Blueprint('auth', __name__)
+
+
+@auth_bp.route("/login", methods=["GET"])
+def login_page():
+    """Render the app (with its login modal) for redirected anonymous users."""
+    return render_template("index.html")
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
