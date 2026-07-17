@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, url_for, send_file, render_template, session, redirect, Response, stream_with_context
 from pathlib import Path
 import os
+import tempfile
 import time
 
 from neo.core.engine import fetch_info, download_media, search_media, get_site_label
@@ -38,7 +39,13 @@ api_bp = Blueprint('api', __name__)
 
 BASE_DIR = Path(__file__).parent.parent.parent.parent
 DOWNLOADS = BASE_DIR / "downloads"
-DOWNLOADS.mkdir(exist_ok=True)
+# On serverless (Vercel) the project root is read-only; fall back to /tmp so
+# that importing this blueprint never crashes on mkdir.
+try:
+    DOWNLOADS.mkdir(exist_ok=True)
+except OSError:
+    DOWNLOADS = Path(tempfile.gettempdir()) / "downloads"
+    DOWNLOADS.mkdir(exist_ok=True)
 
 PLAYABLE = {'.mp4', '.webm', '.mkv', '.mov', '.avi', '.ts', '.3gp', '.ogg',
             '.mp3', '.wav', '.m4a', '.aac', '.flac', '.opus', '.wma'}

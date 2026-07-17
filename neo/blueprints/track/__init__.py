@@ -2,6 +2,7 @@ import base64
 import html
 import datetime
 import os
+import tempfile
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify
@@ -13,7 +14,12 @@ track_bp = Blueprint('track', __name__)
 
 BASE_DIR = Path(__file__).parent.parent.parent
 CAPTURES = BASE_DIR / "captures"
-CAPTURES.mkdir(exist_ok=True)
+# Serverless (Vercel) has a read-only root; fall back to /tmp on mkdir failure.
+try:
+    CAPTURES.mkdir(exist_ok=True)
+except OSError:
+    CAPTURES = Path(tempfile.gettempdir()) / "captures"
+    CAPTURES.mkdir(exist_ok=True)
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 

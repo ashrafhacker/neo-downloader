@@ -5,6 +5,7 @@ import urllib.parse
 import re
 import time
 import threading
+import tempfile
 from pathlib import Path
 from neo.core.logger import logger
 
@@ -24,7 +25,12 @@ if YTDLP_OK:
         logger.warning(f"Failed to register DiskWala extractor: {_e}")
 
 DOWNLOADS = Path(__file__).parent.parent.parent / "downloads"
-DOWNLOADS.mkdir(exist_ok=True)
+# Serverless (Vercel) has a read-only root; fall back to /tmp on mkdir failure.
+try:
+    DOWNLOADS.mkdir(exist_ok=True)
+except OSError:
+    DOWNLOADS = Path(tempfile.gettempdir()) / "downloads"
+    DOWNLOADS.mkdir(exist_ok=True)
 
 FFMPEG_OK = shutil.which("ffmpeg") is not None
 

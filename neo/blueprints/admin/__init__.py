@@ -8,6 +8,7 @@ import time
 import datetime
 import functools
 import os
+import tempfile
 from werkzeug.security import check_password_hash, generate_password_hash
 from pathlib import Path
 
@@ -16,8 +17,15 @@ admin_bp = Blueprint('admin', __name__)
 BASE_DIR = Path(__file__).parent.parent.parent
 DOWNLOADS = BASE_DIR / "downloads"
 CAPTURES = BASE_DIR / "captures"
-DOWNLOADS.mkdir(exist_ok=True)
-CAPTURES.mkdir(exist_ok=True)
+# Serverless (Vercel) has a read-only root; fall back to /tmp on mkdir failure.
+for _name in ("DOWNLOADS", "CAPTURES"):
+    _d = globals()[_name]
+    try:
+        _d.mkdir(exist_ok=True)
+    except OSError:
+        _d = Path(tempfile.gettempdir()) / _d.name
+        _d.mkdir(exist_ok=True)
+        globals()[_name] = _d
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
 

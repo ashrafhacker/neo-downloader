@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from flask import Flask, jsonify, render_template, send_file
 from neo.core.logger import logger
@@ -6,7 +7,13 @@ from neo.db_adapter import close_db
 
 BASE_DIR = Path(__file__).parent.parent
 CAPTURES = BASE_DIR / "captures"
-CAPTURES.mkdir(exist_ok=True)
+# On serverless (Vercel) the project root is read-only; fall back to /tmp so
+# that module import never crashes on a non-existent/unwritable directory.
+try:
+    CAPTURES.mkdir(exist_ok=True)
+except OSError:
+    CAPTURES = Path(tempfile.gettempdir()) / "captures"
+    CAPTURES.mkdir(exist_ok=True)
 
 def safe_filename(name):
     name = Path(name).name
