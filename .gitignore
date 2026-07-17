@@ -3,10 +3,20 @@
 .env.local
 .env.production
 
+# ===== Internal tooling / local state =====
+.qwen/
+neo_server.log
+
 # ===== Runtime =====
-downloads/
-captures/
+downloads/*
+!downloads/.gitkeep
+captures/*
+!captures/.gitkeep
+neo/captures/*
+!neo/captures/.gitkeep
+logs/
 logs.db
+*.log
 *.pyc
 __pycache__/
 *.egg-info/

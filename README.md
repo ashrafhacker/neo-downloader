@@ -113,7 +113,11 @@ cd neo-downloader
 pip install -r requirements.txt
 
 # Place ffmpeg in PATH or repo root
-# Run (dev)
+
+# Run (dev) — modular neo app (recommended)
+python wsgi.py
+
+# Or run the classic monolith directly
 python app.py
 ```
 
@@ -163,12 +167,12 @@ pip install -r requirements.txt
 export FLASK_SECRET_KEY="$(python -c "import secrets; print(secrets.token_hex(32))")"
 export ADMIN_PASSWORD="$(python -c "import secrets; print(secrets.token_hex(16))")"
 
-# Run with gunicorn
-gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+# Run with gunicorn (entry point delegates to the neo app)
+gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
 
 # Or on Windows with waitress
 pip install waitress
-waitress-serve --port=5000 app:app
+waitress-serve --port=5000 wsgi:app
 ```
 
 **Deploy to Railway / Render / Fly.io** — just connect the repo; `Procfile` and `runtime.txt` are ready.
@@ -274,6 +278,9 @@ waitress-serve --port=5000 app:app
 <h2 id="changelog">📋 Changelog</h2>
 
 ### v2.3 (Latest)
+- 🧩 Modular `neo/` app — engine, processor, tasks, db adapter and blueprints (api/auth/admin)
+- 🌐 `wsgi.py` entry point — `gunicorn wsgi:app` for VPS, Vercel & Netlify
+- 🛡️ Admin hardening — stats/users/locations/delete routes, path-traversal guards, dev-mode auto-auth
 - ⚡ Serverless Vercel optimization — `/download` rewritten for 30s timeout limit
 - 🪶 Graceful module fallbacks — app starts even without yt-dlp/requests/ffmpeg
 - 🗄️ SQLite uses `/tmp/logs.db` on serverless (read-only filesystem workaround)

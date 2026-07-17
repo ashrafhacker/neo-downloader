@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [functions]
-  included_files = ["app.py", "db_adapter.py", "templates/**", "requirements.txt"]
+  included_files = ["app.py", "wsgi.py", "neo/**", "db_adapter.py", "templates/**", "requirements.txt"]
 
 [build.environment]
   PYTHON_VERSION = "3.12"

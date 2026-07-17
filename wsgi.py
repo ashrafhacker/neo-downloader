@@ -1,9 +1,7 @@
-"""Legacy entry-point shim.
+"""Root WSGI entry point.
 
-The real application lives in the ``neo`` package. This module exists so that
-older references (``python app.py``, ``from app import app`` in the Netlify
-function, deployment tooling) keep working without change. All request
-handling, including the corrected audio-download path, is served by neo.
+Delegates to the neo application so existing deployment tooling
+(Procfile `gunicorn app:app`, Vercel, Netlify) keeps working.
 """
 import os
 from pathlib import Path
@@ -30,4 +28,4 @@ except Exception as e:  # pragma: no cover - fallback for import failures
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    app.run(host="0.0.0.0", port=port)

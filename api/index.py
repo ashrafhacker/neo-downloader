@@ -1,12 +1,13 @@
-import sys, os, json
+import sys, os
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-os.chdir(str(Path(__file__).parent.parent))
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
+os.chdir(str(ROOT))
 
 try:
-    from app import app as _app
-    app = _app
+    from neo.wsgi import app
+    handler = app
 except Exception as e:
     import traceback
     err_detail = traceback.format_exc()
@@ -15,5 +16,5 @@ except Exception as e:
     @app.route('/<path:path>')
     @app.route('/')
     def catch_all(path=''):
-        return jsonify({"error": f"App failed to load: {str(e)}", "detail": err_detail, "fix": "Check server logs"}), 500
-handler = app
+        return jsonify({"error": f"neo app failed to load: {str(e)}", "detail": err_detail}), 500
+    handler = app
