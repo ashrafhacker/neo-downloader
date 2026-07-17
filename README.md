@@ -56,7 +56,9 @@
 
 <h2 id="supported-platforms">🌐 Supported Platforms</h2>
 
-> YouTube, YouTube Shorts, Instagram (Reels & Posts), TikTok, Twitter/X, Facebook, Telegram, **Terabox**, Reddit, Twitch, Spotify, SoundCloud, Vimeo, Dailymotion, Vine, VK, Pinterest, Tumblr, LinkedIn, Threads, Bluesky, Flickr, 9GAG, IMDb, Steam, and **1000+ more** via [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+> YouTube, YouTube Shorts, Instagram (Reels & Posts), TikTok, Twitter/X, Facebook, Telegram, **Terabox**, Reddit, Twitch, Spotify, SoundCloud, Vimeo, Dailymotion, Vine, VK, Pinterest, Tumblr, LinkedIn, Threads, Bluesky, Flickr, 9GAG, IMDb, Steam, Rumble, Odysee, BitChute, Bilibili, and **1000+ more** via [yt-dlp](https://github.com/yt-dlp/yt-dlp).
+
+> Any other public site yt-dlp can reach is handled automatically as a generic external platform — just paste the link.
 
 ### Format Support
 

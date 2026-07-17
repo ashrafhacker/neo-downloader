@@ -59,6 +59,16 @@ def get_site_label(url):
     if 'vimeo' in u: return 'Vimeo'
     if 'soundcloud' in u: return 'SoundCloud'
     if 'spotify' in u: return 'Spotify'
+    if 'rumble' in u: return 'Rumble'
+    if 'odysee' in u or 'lbry' in u: return 'Odysee'
+    if 'bitchute' in u: return 'BitChute'
+    if 'bilibili' in u: return 'Bilibili'
+    if 'threads' in u: return 'Threads'
+    if 'linkedin' in u: return 'LinkedIn'
+    if 'vk.com' in u or 'vk.ru' in u: return 'VK'
+    if 'xvideos' in u: return 'Xvideos'
+    if 'pinterest' in u: return 'Pinterest'
+    # Any other site yt-dlp can reach is treated as a generic external platform.
     return 'Other'
 
 def fetch_info(url, task_id=None):
