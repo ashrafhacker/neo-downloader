@@ -145,7 +145,7 @@ def test_admin_dev_mode_access(client):
 
     r = client.get("/admin/")
     assert r.status_code == 200
-    assert b"NEO" in r.data
+    assert b"Control Center" in r.data
 
     r = client.get("/admin/stats")
     assert r.status_code == 200
