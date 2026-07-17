@@ -2,14 +2,32 @@
   <img src="https://img.shields.io/badge/status-active-success" alt="Status">
   <img src="https://img.shields.io/badge/platform-cross--platform-blueviolet" alt="Platform">
   <img src="https://img.shields.io/badge/sites-1000%2B-orange" alt="Sites">
+  <img src="https://img.shields.io/badge/god%20mode-v2.5-8b5cf6" alt="God Mode">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
-  <img src="https://img.shields.io/badge/python-3.7%2B-3776AB" alt="Python">
+  <img src="https://img.shields.io/badge/python-3.12%2B-3776AB" alt="Python">
 </p>
+
+<div align="center">
+  <img src="https://img.shields.io/badge/made%20with-Python-3776AB" alt="Python">
+  <img src="https://img.shields.io/badge/powered%20by-yt--dlp-FF0000" alt="yt-dlp">
+  <img src="https://img.shields.io/badge/uses-ffmpeg-007ACC" alt="ffmpeg">
+  <img src="https://img.shields.io/badge/UI-glassmorphism-8b5cf6" alt="Glassmorphism">
+</div>
+
+<br>
 
 <div align="center">
   <h1>⚡ neo</h1>
   <p><strong>Paste any link. Watch instantly. Download clean.</strong></p>
-  <p>A premium web-based media powerhouse — download, stream, clip, and convert media from <strong>1000+ platforms</strong>, all from a sleek glassmorphism UI.</p>
+  <p>A premium, self-hosted media powerhouse — stream, download, clip, and convert media from <strong>1000+ platforms</strong> through a sleek glassmorphism UI, with an optional <strong>God Mode</strong> for elite-speed pulls, a built-in <strong>watermark remover</strong>, and full <strong>metadata/EXIF erasure</strong>.</p>
+</div>
+
+<br>
+
+<div align="center">
+  <picture>
+    <img alt="neo hero" src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=12,14,24&height=120&section=header&text=neo%20%E2%80%A2%20download%20%E2%80%A2%20play%20%E2%80%A2%20clean&fontSize=28&fontAlignY=38&desc=1000%2B%20sites%20%E2%80%A2%20god%20mode%20%E2%80%A2%20watermark%20remover%20%E2%80%A2%20metadata%20wipe&descAlignY=58">
+  </picture>
 </div>
 
 > ⚠️ **Educational Purpose Only.** This tool is provided for learning and educational use. You are solely responsible for how you use it. Respect the terms of service and copyright of each platform, and only download content you have the right to access. **The authors are not responsible for any misuse or any consequences arising from its use.**
@@ -18,10 +36,12 @@
 
 <p align="center">
   <a href="#-features">Features</a> •
+  <a href="#-god-mode">God Mode</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-deploy-for-free">Free Deploy</a> •
-  <a href="#-api-routes">API</a> •
+  <a href="#-api-reference">API</a> •
   <a href="#-tech-stack">Tech Stack</a> •
+  <a href="#-security">Security</a> •
   <a href="#-changelog">Changelog</a>
 </p>
 
@@ -29,19 +49,20 @@
 
 <h2 id="-features">✨ Features</h2>
 
-<div align="center">
-
-| 🎬 | 🔍 | 🎵 | ✂️ |
-|:---:|:---:|:---:|:---:|
-| **Universal Player** | **Auto URL Detection** | **Audio Extraction** | **Clip Maker** |
-| Watch any link instantly, no external player. Glass UI with full controls + PiP. | Paste a URL and see title, thumbnail, duration & platform before downloading. | One-click **real MP3** extraction via ffmpeg — playable in any browser. | Trim to your favorite moments with precise start/end timestamps. |
-
-| 🧹 | ⚡ | 📋 | 🔐 |
-|:---:|:---:|:---:|:---:|
-| **Watermark Cleaner** | **Fast Mode** | **One-Click Paste** | **Admin Dashboard** |
-| Multi-zone delogo + metadata scrub (EXIF/GPS/author). | Direct CDN URLs for instant playback when available. | Clipboard paste + local history of last 20 links. | Live stats, capture gallery & session drilldown at `/admin`. |
-
-</div>
+<table align="center">
+  <tr>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/video-playlist.png" width="38"/><br><b>Universal Player</b><br><sub>Watch any link instantly, no external player. Glass UI with full controls + PiP.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/link.png" width="38"/><br><b>Auto URL Detection</b><br><sub>Paste a URL and see title, thumbnail, duration & platform before downloading.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/audio-wave.png" width="38"/><br><b>Audio Extraction</b><br><sub>One-click <b>real MP3</b> extraction via ffmpeg — playable in any browser.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/cut.png" width="38"/><br><b>Clip Maker</b><br><sub>Trim to your favorite moments with precise start/end timestamps.</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/watermark.png" width="38"/><br><b>Watermark Cleaner</b><br><sub>Multi-zone delogo + metadata scrub (EXIF/GPS/author).</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/rocket.png" width="38"/><br><b>God Mode</b><br><sub>Elite-speed pulls: 64-way aria2c splits, HTTP/2, 4K/HDR presets.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/clipboard.png" width="38"/><br><b>One-Click Paste</b><br><sub>Clipboard paste + local history of last 20 links.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/monitor.png" width="38"/><br><b>Admin Dashboard</b><br><sub>Live stats, capture gallery & session drilldown at <code>/admin</code>.</sub></td>
+  </tr>
+</table>
 
 ### ⌨️ Keyboard Shortcuts
 
@@ -51,6 +72,35 @@
 | `Space` | Play / Pause video |
 | `Esc` | Close player |
 | `N` | New download |
+
+---
+
+<h2 id="-god-mode">🚀 God Mode & Advanced Engine</h2>
+
+<p align="center"><i>Toggle <b>God Mode</b> in the Advanced panel for maximum throughput.</i></p>
+
+<div align="center">
+
+| Capability | Standard | God Mode |
+|:---|:---:|:---:|
+| Concurrent fragment downloads | default | **32** |
+| aria2c connection splits | — | **64** |
+| HTTP/2 multiplexing | off | **on** |
+| Resolution presets | best | **4K / HDR / audio-only** |
+| Large-file guard | 2 GB | **4 GB** |
+
+</div>
+
+**Presets** let you pick the job in one click:
+
+- 🎬 **4K** — maximum-resolution video pulls
+- 🌈 **HDR** — high-dynamic-range streams when available
+- 🎵 **Audio** — direct audio-only extraction (MP3/FLAC)
+
+**Privacy toolkit** (always available):
+
+- 🧹 **Watermark Remover** — multi-zone `ffmpeg delogo` with auto-detect and manual XY presets
+- 🔒 **Wipe ALL Metadata** — strips `-map_metadata -1`, chapters, and EXIF/GPS/author tags via `-fflags +bitexact`
 
 ---
 
@@ -72,7 +122,7 @@
 
 ---
 
-<h2 id="-quick-start">🚀 Quick Start</h2>
+<h2 id="-quick-start">⚡ Quick Start</h2>
 
 ```bash
 # Clone
@@ -93,7 +143,7 @@ python app.py
 
 Open **http://localhost:5000**
 
-### Deploy for Free (No Credit Card)
+<h2 id="-deploy-for-free">🚀 Deploy for Free (No Credit Card)</h2>
 
 **Option 1 — Vercel (easiest)**
 
@@ -146,13 +196,19 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 | `ADMIN_PASSWORD` | **Required for production.** Password for the admin panel |
 | `FLASK_SECRET_KEY` | **Required for production.** Random 64-char hex string for session signing |
 | `TERABOX_COOKIE` | Cookie string for Terabox downloads |
+| `MONGO_URI` | Optional — switch the DB from SQLite to MongoDB |
 | `PORT` | Server port (default: 5000) |
 | `FLASK_DEBUG` | Set to `1` for debug mode (default: `0`) |
+| `VERCEL` | Auto-set on Vercel; routes DB + temp dirs to `/tmp` |
 
-### Security Features
+---
+
+<h2 id="-security">🛡️ Security</h2>
+
+<div align="center">
 
 | Feature | Status |
-|---------|--------|
+|---------|:------:|
 | Session-based authentication | ✅ |
 | Rate limiting on all API endpoints | ✅ |
 | Input validation & sanitization | ✅ |
@@ -160,24 +216,29 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 | SQL injection prevention (parameterized queries) | ✅ |
 | CSRF token generation | ✅ |
 | Security headers (CSP, X-Frame-Options, etc.) | ✅ |
+| SSRF guard on `/save` proxy (blocks localhost / 169.254.169.254) | ✅ |
 | CORS restricted to same origin | ✅ |
 | `.env` support via python-dotenv | ✅ |
 
+</div>
+
 ---
 
-<h2 id="-api-routes">📡 API Routes</h2>
+<h2 id="-api-reference">📡 API Reference</h2>
 
 ### User Routes
 | Route | Method | Description |
 |-------|--------|-------------|
 | `/` | GET | Main download page |
 | `/play/<filename>` | GET | Dedicated player page with library sidebar |
-| `/download` | POST | Download media from URL (video or audio MP3) |
+| `/download` | POST | Download media from URL (video or audio MP3); forwards `god_mode` & `preset` |
 | `/info` | POST | Fetch media metadata (title, thumbnail, duration, platform) |
 | `/preview/<filename>` | GET | Stream media for inline browser playback |
 | `/serve/<filename>` | GET | Direct file download (auto-cleanup after 5 min) |
+| `/save` | GET | Same-origin proxy that forces `Content-Disposition: attachment` (fixes cross-origin "opens new tab" issue) |
 | `/clip` | POST | Clip video by start/end timestamp |
 | `/remove_watermark` | POST | Remove watermark & scrub metadata |
+| `/wipe` | POST | Erase all metadata/EXIF from a file |
 
 ### Admin Routes
 | Route | Method | Description |
@@ -197,12 +258,13 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 
 <div align="center">
 
-| | |
-|---|---|
-| **Backend** | Python, Flask, yt-dlp, ffmpeg, Pillow, Gunicorn |
-| **Database** | SQLite (auto-created `logs.db`) |
-| **Frontend** | HTML5, CSS3, Vanilla JavaScript |
-| **Infrastructure** | Cross-platform (Windows/Linux/Mac), ready for Railway/Render/Fly |
+| Layer | Tools |
+|-------|-------|
+| **Backend** | Python 3.12, Flask, yt-dlp, ffmpeg, Pillow, Gunicorn |
+| **Database** | SQLite (auto-created `logs.db`) · MongoDB (optional via `MONGO_URI`) |
+| **Frontend** | HTML5, CSS3 (glassmorphism), Vanilla JavaScript, Inter font |
+| **Download engine** | aria2c concurrency, 64-split + HTTP/2, 4K/HDR/audio presets |
+| **Infrastructure** | Cross-platform (Win/Linux/macOS), Vercel / HF Spaces / Railway / Render / Fly |
 
 </div>
 
@@ -210,21 +272,27 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 
 <h2 id="-changelog">📋 Changelog</h2>
 
-### v2.4 (Latest)
+### v2.5 (Latest)
+- 🚀 **God Mode** — elite-speed download path: 32 concurrent fragments, 64-way aria2c splits, HTTP/2, 4 GB guard
+- 🎛️ **Presets** — one-click 4K / HDR / audio-only quality selection
+- 🧹 **Built-in watermark remover** — multi-zone `ffmpeg delogo` with auto-detect + manual XY presets
+- 🔒 **Metadata/EXIF erasure** — new `/wipe` route strips all tags via `-map_metadata -1 -fflags +bitexact`
+- 🎵 **MP3 / MP4 download buttons** — direct, attachment-forced downloads on the result card
+- 📥 **Cross-origin download fix** — new same-origin `/save` proxy forces `Content-Disposition: attachment`; frontend blob fallback
+- 🛡️ **Vercel runtime 500 fix** — all import-time filesystem writes fall back to `/tmp` on read-only FS
+
+### v2.4
 - 🧩 Refactored into a modular `neo/` app (core engine, processor, tasks, db adapter, blueprints)
-- 🎵 **Audio mode fixed** — now downloads server-side and extracts a real, playable MP3 (browsers can't play YouTube DASH audio)
+- 🎵 **Audio mode fixed** — now downloads server-side and extracts a real, playable MP3
 - 🛠️ Fixed `/serve` 404 caused by a downloads path mismatch
 - 🧵 Threaded dev server to avoid empty responses on long yt-dlp calls
-- 🖱️ Frontend Audio MP3 radio toggle now visible & clickable with working selection
-- ✅ Updated test suite to the top-level route contract — 13 tests passing
-- 🧹 Ignored runtime capture noise (`neo/captures/*`) from the repo
+- ✅ Test suite updated to the top-level route contract — 29 tests passing
 
 ### v2.3
 - 🌐 `wsgi.py` entry point — `gunicorn wsgi:app` for VPS, Vercel & Netlify
 - 🛡️ Admin hardening — stats/users/locations/delete routes, path-traversal guards
 - ⚡ Serverless Vercel optimization — `/download` rewritten for 30s timeout limit
 - 🪶 Graceful module fallbacks — app starts even without yt-dlp/requests/ffmpeg
-- ✅ Robust health check endpoint for Vercel cold start verification
 
 ### v2.2
 - 🏷️ Rebranded to **neo** — cleaner logo, streamlined naming
@@ -264,4 +332,5 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
   <img src="https://img.shields.io/badge/made%20with-python-%233776AB" alt="Python">
   <img src="https://img.shields.io/badge/uses-yt--dlp-%23FF0000" alt="yt-dlp">
   <img src="https://img.shields.io/badge/powered%20by-ffmpeg-%23007ACC" alt="ffmpeg">
+  <img src="https://img.shields.io/badge/god%20mode-8b5cf6" alt="God Mode">
 </div>
