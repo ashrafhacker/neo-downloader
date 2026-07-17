@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, url_for, send_file, render_template, session, redirect
+from flask import Blueprint, request, jsonify, url_for, send_file, render_template, session, redirect, Response, stream_with_context
 from pathlib import Path
 import os
 import time
@@ -258,6 +258,55 @@ def wipe():
         "filename": out["filename"],
         "download_url": _download_url(out["filename"]),
     })
+
+
+@api_bp.route("/save")
+def save_url():
+    """Proxy a direct CDN URL to the browser as a forced download.
+
+    Browsers ignore the `download` attribute on cross-origin links, so a raw
+    direct_url opens a new tab instead of saving. Streaming it through our
+    origin with Content-Disposition: attachment guarantees a real download.
+    """
+    import urllib.request
+    url = (request.args.get("url") or "").strip()
+    name = (request.args.get("name") or "neo-media").strip() or "neo-media"
+    if not url or not url.startswith("http"):
+        return jsonify({"success": False, "error": "Invalid URL"}), 400
+
+    # Disallow obvious local/metadata addresses to avoid SSRF to internal hosts.
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ""
+    if host in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
+        return jsonify({"success": False, "error": "Blocked host"}), 403
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        remote = urllib.request.urlopen(req, timeout=60)
+
+        def gen():
+            while True:
+                chunk = remote.read(1024 * 256)
+                if not chunk:
+                    break
+                yield chunk
+            remote.close()
+
+        ext = Path(url.split("?")[0]).suffix or ""
+        safe_name = f"{Path(name).stem}{ext}"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Cache-Control": "no-store",
+        }
+        ct = remote.headers.get("Content-Type")
+        if ct:
+            headers["Content-Type"] = ct
+        cl = remote.headers.get("Content-Length")
+        if cl:
+            headers["Content-Length"] = cl
+        return Response(stream_with_context(gen()), headers=headers)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
 
 
 @api_bp.route("/serve/<filename>")

@@ -778,7 +778,7 @@ const prevTitle = $('#prevTitle'), prevSite = $('#prevSite'), prevDur = $('#prev
 const urlHistory = $('#urlHistory');
 const toolsGrid = $('#toolsGrid');
 
-let lastFilename = '', fetchInfoTimer = null, downloadMode = 'video';
+let lastFilename = '', fetchInfoTimer = null, downloadMode = 'video', currentExt = 'mp4';
 
 function t(m, type) { toast.textContent = m; toast.className = 'toast show' + (type ? ' ' + type : ''); clearTimeout(toast._t); toast._t = setTimeout(() => toast.classList.remove('show'), 3000); }
 function setPct(n) { arc.style.strokeDashoffset = C - (n/100)*C; pctNum.textContent = Math.round(n); }
@@ -833,7 +833,26 @@ document.getElementById('mp3Btn').onclick = function() {
 
 // ===== Close Player =====
 againBtn.onclick = () => { hide(doneBox); hide(errBox); hide(toolsGrid); document.getElementById('clipCollapse').style.display='none'; document.getElementById('wmCollapse').style.display='none'; document.getElementById('previewVideo').src=''; document.getElementById('previewVideo').style.display='none'; document.getElementById('previewAudio').src=''; document.getElementById('previewAudio').style.display='none'; document.getElementById('modeGroup').style.display=''; hide(ring); hide(flashBox); urlInput.value=''; urlInput.focus(); };
-doneLink.onclick = function(e) { if(this.getAttribute('href')==='#') e.preventDefault(); };
+doneLink.onclick = async function(e) {
+  const href = this.getAttribute('href');
+  if (!href || href === '#') { e.preventDefault(); return; }
+  // Same-origin /serve and /save already send Content-Disposition: attachment,
+  // so the browser downloads normally. Only cross-origin raw links need a blob.
+  if (href.startsWith('http') && !href.startsWith(location.origin)) {
+    e.preventDefault();
+    try {
+      t('Fetching file…');
+      const resp = await fetch(href);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (lastFilename || 'neo-media') + '.' + (currentExt || 'mp4');
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      t('Download started', 'success');
+    } catch { window.open(href, '_blank'); }
+  }
+};
 document.querySelectorAll('.modes label').forEach(l => l.onclick = (e) => {
   const input = l.querySelector('input');
   if (input) { input.checked = true; }
@@ -897,11 +916,12 @@ dlBtn.addEventListener('click', async () => {
     lastFilename = d.filename || ''; addHistory(url);
     doneTitle.textContent = d.title && d.title.length > 60 ? d.title.slice(0,60)+'...' : d.title || 'Untitled';
     doneSub.textContent = (d.ext||'').toUpperCase();
-    if (d.direct_url) { doneLink.href = d.direct_url; doneLink.download = ''; } else { doneLink.href = d.download_url; doneLink.download = d.filename; }
+    if (d.direct_url) { doneLink.href = '/save?url=' + encodeURIComponent(d.direct_url) + '&name=' + encodeURIComponent(d.filename || 'neo-media'); doneLink.download = ''; } else { doneLink.href = d.download_url; doneLink.download = d.filename; }
     document.getElementById('extBadge').textContent = (d.ext||'').toUpperCase() + (d.site ? ' \u00B7 ' + d.site : '');
     if (d.filesize) document.getElementById('doneSize').textContent = (d.filesize/1024/1024).toFixed(1)+' MB'; else document.getElementById('doneSize').textContent = '';
     const pv = document.getElementById('previewVideo'), pa = document.getElementById('previewAudio');
     const ext = (d.ext||'').toLowerCase();
+    currentExt = ext || 'mp4';
     const videoExts = {'mp4':1,'webm':1,'mkv':1,'mov':1,'avi':1,'ts':1,'3gp':1,'ogg':1};
     const audioExts = {'mp3':1,'wav':1,'m4a':1,'aac':1,'flac':1,'opus':1,'wma':1,'ogg':1};
     pv.style.display = 'none'; pv.removeAttribute('src'); pa.style.display = 'none'; pa.removeAttribute('src');
