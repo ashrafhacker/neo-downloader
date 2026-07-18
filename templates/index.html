@@ -810,7 +810,7 @@ urlInput.onblur = () => setTimeout(() => urlHistory.classList.remove('show'), 15
 urlHistory.onclick = e => { const item = e.target.closest('.h-item'); if (item) { const h = getHistory(); urlInput.value = h[parseInt(item.dataset.idx)]; urlInput.dispatchEvent(new Event('input')); urlHistory.classList.remove('show'); urlInput.focus(); } if (e.target.id === 'hClear') { localStorage.removeItem('url_history'); urlHistory.classList.remove('show'); t('History cleared'); } };
 
 // ===== Auto URL Info =====
-urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = urlInput.value.trim(); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } if (isDiskWala(url) && !currentUser) { return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
+urlInput.addEventListener('input', () => { clearTimeout(fetchInfoTimer); const url = normalizeTerabox(urlInput.value.trim()); urlPreview.classList.remove('show'); if (!url || !url.startsWith('http')) { document.getElementById('modeGroup').style.display = 'none'; return; } if (isDiskWala(url) && !currentUser) { return; } fetchInfoTimer = setTimeout(async () => { try { const r = await fetch('/info', { method:'POST', headers:sessHeaders(), body:JSON.stringify({url, cookies: getCookies()}) }); const d = await safeJson(r); if (d.error) return; prevTitle.textContent = d.title && d.title.length > 50 ? d.title.slice(0,50)+'...' : d.title || 'Untitled'; prevSite.textContent = d.uploader || ''; prevDur.textContent = d.duration ? Math.floor(d.duration/60)+':'+String(Math.floor(d.duration%60)).padStart(2,'0') : ''; prevThumb.src = d.thumbnail || ''; prevSiteBadge.textContent = d.webpage_url ? new URL(d.webpage_url).hostname.replace('www.','').split('.')[0].toUpperCase() : 'LINK'; if (prevThumb.src) prevThumb.style.display = 'block'; urlPreview.classList.add('show'); document.getElementById('modeGroup').style.display = ''; } catch {} }, 600); });
 
 // ===== Paste =====
 document.getElementById('pasteBtn').onclick = async () => { try { const text = await navigator.clipboard.readText(); urlInput.value = text; urlInput.focus(); urlInput.dispatchEvent(new Event('input')); } catch { t('Cannot read clipboard. Allow permission or paste manually.', 'error'); } };
@@ -894,6 +894,23 @@ function isYouTube(url) {
   const u = (url || '').toLowerCase();
   return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('youtube-nocookie.com');
 }
+function isTerabox(url) {
+  const u = (url || '').toLowerCase();
+  return u.includes('terabox') || u.includes('1024tera') || u.includes('dubox') || u.includes('4funbox');
+}
+// Rewrite Terabox mirror hosts (1024terabox.com, 1024tera.com, etc.) to the
+// canonical terabox.com domain so the server-side extractor recognizes them.
+function normalizeTerabox(url) {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    if (h.includes('terabox') || h.includes('1024tera') || h.endsWith('dubox.com') || h.endsWith('dubox.link') || h.includes('4funbox') || h.includes('teraboxapp')) {
+      u.hostname = 'terabox.com';
+      return u.toString();
+    }
+  } catch {}
+  return url;
+}
 // Server-free YouTube path: a Piped instance resolves the stream, our
 // same-origin /save proxy fetches the bytes. Our server never hits YouTube,
 // so the bot-check can't occur.
@@ -905,6 +922,11 @@ async function youtubeFallback(url, mode) {
   });
   const d = await safeJson(r);
   if (!d.success || !d.save_url) throw new Error(d.error || 'Fallback failed');
+  // Playlists can't be fetched whole through the server-free path; the
+  // fallback resolves the first video so the bot-check never blocks it.
+  if (/[?&]list=/.test(url)) {
+    t('Playlist bot-check detected — downloading the first video via fallback.', 'success');
+  }
   setPct(100); hide(ring); hide(flashBox);
   // Trigger the same-origin download through /save (CORS-safe).
   const a = document.createElement('a');
@@ -920,6 +942,46 @@ async function youtubeFallback(url, mode) {
   doneLink.href = d.save_url; doneLink.download = '';
   show(doneBox);
   t('Download started via fallback (no bot-check).', 'success');
+}
+// TeraPlayer: paste a Terabox link -> server resolves it to a direct URL
+// (server supplies the cookie) -> we stream/download it like any platform.
+async function teraboxPlay(url, mode) {
+  hide(errBox); hide(doneBox); hide(flashBox); hide(toolsGrid);
+  document.getElementById('clipCollapse').style.display='none'; document.getElementById('wmCollapse').style.display='none';
+  show(flashBox); flashSub.textContent = 'Resolving Terabox link...';
+  show(ring); setPct(0); pctSub.textContent = '%'; statusTxt.textContent = 'Processing...';
+  let start = Date.now(), done = false, raf;
+  function anim() { if (done) return; const e = (Date.now()-start)/1000; const p = Math.min(98, 100*(1-Math.exp(-e*0.4))); setPct(p); pctSub.textContent = Math.round(p)+'%'; statusTxt.textContent = e<3?'Resolving...':e<10?'Fetching link...':'Almost done...'; raf = requestAnimationFrame(anim); }
+  anim();
+  try {
+    const r = await fetch('/terabox/resolve', {
+      method:'POST', headers:sessHeaders(), body:JSON.stringify({ url })
+    });
+    const d = await safeJson(r);
+    done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent='100%'; statusTxt.textContent='Ready!';
+    if (d.error) { hide(ring); hide(flashBox); showErr(d.error); return; }
+    setTimeout(() => { hide(ring); hide(flashBox); }, 400);
+    addHistory(url);
+    doneTitle.textContent = d.title && d.title.length > 60 ? d.title.slice(0,60)+'...' : d.title || 'Terabox';
+    doneSub.textContent = (d.ext||'').toUpperCase();
+    document.getElementById('extBadge').textContent = (d.ext||'').toUpperCase() + ' · Terabox';
+    document.getElementById('doneSize').textContent = d.filesize ? (d.filesize/1024/1024).toFixed(1)+' MB' : '';
+    const doneLink = document.getElementById('doneLink');
+    doneLink.href = d.save_url; doneLink.download = '';
+    const pv = document.getElementById('previewVideo'), pa = document.getElementById('previewAudio');
+    pv.style.display='none'; pv.removeAttribute('src'); pa.style.display='none'; pa.removeAttribute('src');
+    const ext = (d.ext||'').toLowerCase();
+    const videoExts = {'mp4':1,'webm':1,'mkv':1,'mov':1,'avi':1,'ts':1,'3gp':1,'ogg':1};
+    const audioExts = {'mp3':1,'wav':1,'m4a':1,'aac':1,'flac':1,'opus':1,'wma':1,'ogg':1};
+    if (videoExts[ext]) { pv.src = d.direct_url; pv.style.display='block'; pv.load(); setTimeout(()=>pv.play().catch(()=>{}),300); document.getElementById('pipBtn').classList.add('show'); }
+    else if (audioExts[ext]) { pa.src = d.direct_url; pa.style.display='block'; pa.load(); setTimeout(()=>pa.play().catch(()=>{}),300); document.getElementById('pipBtn').classList.remove('show'); }
+    else { pa.src = d.direct_url; pa.style.display='block'; pa.load(); document.getElementById('pipBtn').classList.remove('show'); }
+    document.getElementById('modeGroup').style.display='none'; urlPreview.classList.remove('show');
+    show(doneBox); show(toolsGrid);
+  } catch(e) {
+    done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox);
+    showErr('Terabox resolution failed: ' + (e.message || e));
+  }
 }
 function requireLoginForDiskWala(url) {
   if (!isDiskWala(url)) return false;
@@ -937,8 +999,13 @@ async function safeJson(r) {
   return r.json();
 }
 dlBtn.addEventListener('click', async () => {
-  const url = urlInput.value.trim(); if(!url) { showErr('Paste a URL'); return; }
+  const url = normalizeTerabox(urlInput.value.trim()); if(!url) { showErr('Paste a URL'); return; }
+  urlInput.value = url;
   if (requireLoginForDiskWala(url)) return;
+  // Terabox: resolve server-side via the TeraPlayer endpoint (no user cookies
+  // needed — the server supplies the session). This avoids yt-dlp's removed
+  // Terabox extractor and the terabox.com -> terabox.app redirect trap.
+  if (isTerabox(url)) { await teraboxPlay(url, mode); dlBtn.disabled=false; dlBtn.textContent='Download'; return; }
   // YouTube on cloud hosts usually bot-checks; we no longer block up-front —
   // the server tries, and on failure we transparently use the Piped fallback
   // (server-free), so the user never sees a bot-check error.
@@ -953,12 +1020,19 @@ dlBtn.addEventListener('click', async () => {
   function anim() { if (done) return; const elapsed = (Date.now()-start)/1000; pct = Math.min(98, 100 * (1 - Math.exp(-elapsed * 0.25)) + elapsed * 0.5); setPct(pct); pctSub.textContent = Math.round(pct) + '%'; if (elapsed < 3) statusTxt.textContent = 'Processing...'; else if (elapsed < 8) statusTxt.textContent = 'Downloading...'; else statusTxt.textContent = 'Almost done...'; raf = requestAnimationFrame(anim); }
   anim();
   try {
-    const r = await fetch('/download', { method:'POST', headers:sessHeaders(), body:JSON.stringify({
-      url, format:'best', mode,
-      god_mode: document.getElementById('godChk').checked,
-      preset: document.getElementById('presetSel').value || null,
-      cookies: getCookies()
-    }) });
+    // Hard client-side ceiling so a slow/hanging source (e.g. Terabox on a
+    // blocked datacenter IP) can't leave the progress ring spinning forever.
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 90000);
+    const r = await fetch('/download', {
+      method:'POST', headers:sessHeaders(), body:JSON.stringify({
+        url, format:'best', mode,
+        god_mode: document.getElementById('godChk').checked,
+        preset: document.getElementById('presetSel').value || null,
+        cookies: getCookies()
+      }), signal: ctrl.signal
+    });
+    clearTimeout(to);
     const d = await safeJson(r);
     done = true; cancelAnimationFrame(raf); setPct(100); pctSub.textContent = '100%'; statusTxt.textContent = 'Ready!';
     if(d.error) {
@@ -999,7 +1073,13 @@ dlBtn.addEventListener('click', async () => {
       document.getElementById('clipCollapse').style.display='none';
       document.getElementById('wmCollapse').style.display='none';
     }
-  } catch(e) { done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox); showErr('Error: '+e.message+'. Try a direct media URL, or deploy on Hugging Face for full support.'); }
+  } catch(e) {
+    done = true; cancelAnimationFrame(raf); hide(ring); hide(flashBox);
+    const msg = (e && e.name === 'AbortError')
+      ? 'Timed out after 90s with no response. The source may be blocking this server IP (common with Terabox). Try a direct media URL, or deploy on Hugging Face for full support.'
+      : 'Error: '+e.message+'. Try a direct media URL, or deploy on Hugging Face for full support.';
+    showErr(msg);
+  }
   dlBtn.disabled=false; dlBtn.textContent='Download';
 });
 
@@ -1011,7 +1091,7 @@ function selectedSubs() { return Array.from(subSel.selectedOptions).map(o => o.v
 
 // Populate quality options from /info when a single URL is in the box.
 urlInput.addEventListener('input', () => {
-  const url = urlInput.value.trim();
+  const url = normalizeTerabox(urlInput.value.trim());
   if (!url || !url.startsWith('http')) return;
   if (isDiskWala(url) && !currentUser) return;
   clearTimeout(window._qTimer);

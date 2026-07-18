@@ -18,6 +18,9 @@ _tmp_db.close()
 os.environ["NEO_DB_PATH"] = _tmp_db.name
 os.environ.setdefault("VERCEL", "")
 os.environ.pop("MONGO_URI", None)
+# Tests exercise the no-password first-run setup flow; an operator-configured
+# ADMIN_PASSWORD would disable setup and redirect admin routes to /login.
+os.environ.pop("ADMIN_PASSWORD", None)
 
 from neo.app import create_app
 from neo.db_adapter import get_db, close_db
@@ -329,6 +332,46 @@ def test_youtube_stream_returns_save_url(client, monkeypatch):
     assert body["success"] is True
     assert body["stream_url"].startswith("https://")
     assert "/save?url=" in body["save_url"]
+
+
+def test_youtube_playlist_fallback_resolves_first_video(monkeypatch):
+    """A playlist bot-check URL falls back to the first video via Piped."""
+    from neo.core import engine as _eng
+
+    class _Resp:
+        def __init__(self, payload):
+            self._p = payload.encode("utf-8")
+        def read(self):
+            return self._p
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    import urllib.request
+    playlist_json = '{"relatedStreams":[{"url":"/watch?v=FIRSTVID012"},{"url":"/watch?v=OTHERVID012"}]}'
+
+    def fake_urlopen(req, timeout=15):
+        assert "/playlists/PLabc" in req.full_url
+        return _Resp(playlist_json)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    vid = _eng._piped_first_playlist_video("PLabc")
+    assert vid == "FIRSTVID012"
+
+
+def test_youtube_stream_route_resolves_playlist_url(client, monkeypatch):
+    """/youtube/stream accepts a playlist URL (resolves first item)."""
+    from neo.blueprints import api as _api
+    monkeypatch.setattr(
+        _api, "get_youtube_stream",
+        lambda url, mode="video": ("https://cdn.example/p.mp4", "First", "mp4"),
+    )
+    r = client.post("/youtube/stream",
+                    json={"url": "https://youtube.com/playlist?list=PL0noHo4NRrkIy5ZfL6-B6SHO1hfC6fd0l"})
+    assert r.status_code == 200
+    assert r.get_json()["success"] is True
+
 
 
 def test_batch_gated_url_redirects_anonymous(client):
@@ -664,3 +707,110 @@ def test_apply_cookies_no_env(monkeypatch):
     # Ensure no cookies.txt exists at the resolved project root for this test.
     opts = engine._apply_cookies({})
     assert "cookiefile" not in opts
+
+
+# ===== Terabox TeraPlayer =====
+def test_terabox_extractor_registered(monkeypatch):
+    """The custom TeraboxIE is injected into yt-dlp's registry."""
+    import yt_dlp.extractor as extractor_mod
+    from neo.core.extractors.terabox import TeraboxIE, register
+    # Ensure registration lands in the live registry even if a prior
+    # import_extractors() rebuilt the dict.
+    extractor_mod.import_extractors()
+    register()
+    ctx = extractor_mod._extractors_context.value
+    assert ctx.get('terabox') is TeraboxIE
+
+
+def test_terabox_url_matching():
+    """Mirror hosts and both URL shapes route to the TeraboxIE."""
+    from neo.core.extractors.terabox import TeraboxIE
+    good = [
+        "https://1024terabox.com/s/1slzi40Hk5XJq9TWyl8l9BQ",
+        "https://www.terabox.app/sharing/link?surl=slzi40Hk5XJq9TWyl8l9BQ",
+        "https://terabox.com/s/abcDEF123",
+        "https://dubox.com/s/xyz789",
+    ]
+    for u in good:
+        assert TeraboxIE.suitable(u), f"should match: {u}"
+    assert not TeraboxIE.suitable("https://youtube.com/watch?v=abc")
+
+
+def test_terabox_resolve_happy_path(monkeypatch):
+    """resolve_terabox scrapes jsToken, calls share/list, returns dlink."""
+    from neo.core.extractors import terabox as mod
+
+    def fake_get(url, headers, timeout=20):
+        if '/s/' in url or '/sharing' in url:
+            return "<html>var jsToken = 'TOK123';</html>"
+        if '/share/list' in url:
+            assert 'jsToken=TOK123' in url
+            return '{"errno":0,"list":[{"server_filename":"clip.mp4","size":12345,"dlink":"https://dl.terabox.com/f"}]}'
+        return ''
+
+    monkeypatch.setattr(mod, '_http_get', fake_get)
+    res = mod.resolve_terabox("https://1024terabox.com/s/1slzi40Hk5XJq9TWyl8l9BQ")
+    assert res['title'] == 'clip.mp4'
+    assert res['ext'] == 'mp4'
+    assert res['filesize'] == 12345
+    assert res['url'].startswith('https://dl.terabox.com/')
+
+
+def test_terabox_resolve_empty_list_errors(monkeypatch):
+    """An empty file list yields a clear ValueError, not a crash."""
+    from neo.core.extractors import terabox as mod
+
+    def fake_get(url, headers, timeout=20):
+        if '/s/' in url or '/sharing' in url:
+            return "var jsToken = 'T';"
+        if '/share/list' in url:
+            return '{"errno":0,"list":[]}'
+        return ''
+
+    monkeypatch.setattr(mod, '_http_get', fake_get)
+    with pytest.raises(ValueError):
+        mod.resolve_terabox("https://terabox.com/s/abc")
+
+
+def test_terabox_resolve_login_required_errors(monkeypatch):
+    """errno=2 (login) is reported as a session-required error."""
+    from neo.core.extractors import terabox as mod
+
+    def fake_get(url, headers, timeout=20):
+        if '/s/' in url or '/sharing' in url:
+            return "var jsToken = 'T';"
+        if '/share/list' in url:
+            return '{"errno":2,"errmsg":"login required"}'
+        return ''
+
+    monkeypatch.setattr(mod, '_http_get', fake_get)
+    with pytest.raises(ValueError) as e:
+        mod.resolve_terabox("https://terabox.com/s/abc")
+    assert 'logged-in' in str(e.value).lower()
+
+
+def test_terabox_resolve_route(client, monkeypatch):
+    """/terabox/resolve returns the dlink JSON to the client."""
+    from neo.core.extractors import terabox as mod
+
+    def fake_get(url, headers, timeout=20):
+        if '/s/' in url or '/sharing' in url:
+            return "var jsToken = 'T';"
+        if '/share/list' in url:
+            return '{"errno":0,"list":[{"server_filename":"movie.mp4","size":999,"dlink":"https://dl.terabox.com/x"}]}'
+        return ''
+
+    monkeypatch.setattr(mod, '_http_get', fake_get)
+    r = client.post('/terabox/resolve', json={'url': 'https://terabox.com/s/abc'})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['success'] is True
+    assert d['direct_url'] == 'https://dl.terabox.com/x'
+    assert d['title'] == 'movie.mp4'
+
+
+def test_terabox_resolve_rejects_non_terabox(client):
+    """Non-Terabox URLs are rejected by the resolver route."""
+    r = client.post('/terabox/resolve', json={'url': 'https://youtube.com/watch?v=1'})
+    assert r.status_code == 400
+    assert r.get_json()['success'] is False

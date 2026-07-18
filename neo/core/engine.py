@@ -23,6 +23,11 @@ if YTDLP_OK:
         _register_diskwala()
     except Exception as _e:  # pragma: no cover - non-fatal
         logger.warning(f"Failed to register DiskWala extractor: {_e}")
+    try:
+        from neo.core.extractors.terabox import register as _register_terabox
+        _register_terabox()
+    except Exception as _e:  # pragma: no cover - non-fatal
+        logger.warning(f"Failed to register Terabox extractor: {_e}")
 
 DOWNLOADS = Path(__file__).parent.parent.parent / "downloads"
 # Serverless (Vercel) mounts the project root read-only: the directory may
@@ -122,6 +127,30 @@ def set_cached_info(url, info):
             oldest = min(metadata_cache.keys(), key=lambda k: metadata_cache[k]['timestamp'])
             del metadata_cache[oldest]
 
+def normalize_terabox_url(url):
+    """Rewrite Terabox mirror hosts to the canonical terabox.com domain.
+
+    yt-dlp's built-in extractor only recognizes terabox.com / teraboxapp.com /
+    dubox.* etc. Mirrors such as 1024terabox.com / 1024tera.com / neotera.box
+    share the same `surl` token but return 'Unsupported URL'. Rewriting the
+    host keeps the sharing token so the canonical extractor can resolve it.
+    """
+    try:
+        from urllib.parse import urlparse, urlunparse
+    except Exception:
+        return url
+    u = url.strip()
+    try:
+        p = urlparse(u)
+    except Exception:
+        return url
+    host = (p.netloc or "").lower()
+    if "terabox" in host or "1024tera" in host or host.endswith("dubox.com") or host.endswith("dubox.link") or "4funbox" in host or "teraboxapp" in host:
+        # Keep the path + query (the surl token lives in the query string).
+        new_host = "terabox.com"
+        return urlunparse((p.scheme or "https", new_host, p.path, p.params, p.query, p.fragment))
+    return url
+
 def get_site_label(url):
     u = url.lower()
     if 'youtube' in u or 'youtu.be' in u: return 'YouTube'
@@ -158,6 +187,8 @@ def fetch_info(url, task_id=None, cookiefile=None):
     cached = get_cached_info(url)
     if cached:
         return cached
+
+    url = normalize_terabox_url(url)
 
     if not YTDLP_OK:
         raise Exception("yt-dlp not installed")
@@ -224,6 +255,27 @@ _PIPED_INSTANCES = [
 ]
 
 
+def _piped_first_playlist_video(playlist_id):
+    """Return the first video id of a YouTube playlist via Piped."""
+    import urllib.request
+    import json as _json
+    for base in _PIPED_INSTANCES:
+        try:
+            req = urllib.request.Request(
+                f"{base}/playlists/{playlist_id}",
+                headers={"User-Agent": "Mozilla/5.0 neo", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = _json.loads(r.read().decode("utf-8"))
+            for item in data.get("relatedStreams") or []:
+                v = _youtube_id(item.get("url") or "")
+                if v:
+                    return v
+        except Exception:
+            continue
+    return None
+
+
 def get_youtube_stream(url, mode="video"):
     """Resolve a YouTube stream via Piped (no server-side YouTube contact).
 
@@ -232,6 +284,12 @@ def get_youtube_stream(url, mode="video"):
     same-origin /save proxy, bypassing the bot-check entirely.
     """
     vid = _youtube_id(url)
+    # Playlist URLs have no single video id; resolve the first item via Piped
+    # so the server-free fallback works for "playlist?list=" bot-check cases.
+    if not vid:
+        plid = re.search(r"[?&]list=([A-Za-z0-9_-]+)", url)
+        if plid:
+            vid = _piped_first_playlist_video(plid.group(1))
     if not vid:
         return None, None, None
     import urllib.request
@@ -315,6 +373,8 @@ def download_media(url, mode='video', format_id='best', task_id=None,
         parallel fragment downloads and fastest ffmpeg encode.
     preset: 'best' | '4k' | 'hdr' | 'audio' — overrides format selection.
     """
+    url = normalize_terabox_url(url)
+
     # Audio mode always downloads server-side and extracts a real, playable MP3.
     # YouTube's audio-only DASH streams (m4a/opus direct URLs) are often
     # unplayable in browsers and expire quickly, so fast mode is skipped.

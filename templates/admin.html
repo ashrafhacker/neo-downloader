@@ -396,20 +396,21 @@ function openPreview(url,type){ $('#modalContent').innerHTML = type==='video'?`<
 function closeModal(){ $('#modalContent').innerHTML=''; $('#modalOverlay').classList.remove('show'); }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-let STATS={}, LOCS={}, USERS=[], LINKS=[], CAPS=[], SCREENS=[], CLICKS=[], KEYS=[];
+let STATS={}, LOCS={}, USERS=[], LINKS=[], CAPS=[], SCREENS=[], CLICKS=[], KEYS=[], KEYS_COUNT=0;
+
+// Resilient fetch: one failing endpoint must not blank the whole dashboard.
+async function jget(url){ try { const r=await fetch(url); return await r.json(); } catch(e){ console.error(url, e); return {}; } }
 
 async function loadAll(){
-  try{
-    const [s,l,u,g]=await Promise.all([
-      fetch('/admin/stats').then(r=>r.json()),
-      fetch('/admin/links').then(r=>r.json()),
-      fetch('/admin/users').then(r=>r.json()),
-      fetch('/admin/locations').then(r=>r.json())
-    ]);
-    STATS=s; LOCS=g; USERS=u.users||[]; LINKS=l.data||[];
-    renderOverview(s); renderLinks(); renderSessions(); renderGeo(g);
-    $('#navLinks').textContent=LINKS.length; $('#navSess').textContent=USERS.length; $('#navCap').textContent=(s.captures_total||0);
-  }catch(e){console.error(e);}
+  const [s,l,u,g]=await Promise.all([
+    jget('/admin/stats'),
+    jget('/admin/links'),
+    jget('/admin/users'),
+    jget('/admin/locations')
+  ]);
+  STATS=s||{}; LOCS=g||{}; USERS=(u&&u.users)||[]; LINKS=(l&&l.data)||[];
+  renderOverview(STATS); renderLinks(); renderSessions(); renderGeo(LOCS);
+  $('#navLinks').textContent=LINKS.length; $('#navSess').textContent=USERS.length; $('#navCap').textContent=(STATS.captures_total||0);
 }
 
 /* overview */
@@ -465,7 +466,6 @@ function renderOverview(s){
     </tr>`).join('')||`<tr><td colspan="7" class="empty">No downloads yet</td></tr>`;
   $('#dlTotal').textContent=s.total+' requests';
 }
-let KEYS_COUNT=0;
 function stat(ico,lbl,val,sub){return `<div class="stat"><i class="fa-solid ${ico} s-ico"></i><div class="s-val">${val}</div><div class="s-lbl">${lbl}</div><div class="s-sub">${sub}</div></div>`;}
 function bar(nm,v,max){const pct=Math.min(100,Math.round(v/max*100));return `<div class="bar-item"><span class="nm">${esc(nm)}</span><span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span><span class="ct">${v}</span></div>`;}
 function emptyRow(){return `<div class="bar-item"><span class="nm" style="color:var(--txt3)">No data yet</span></div>`;}

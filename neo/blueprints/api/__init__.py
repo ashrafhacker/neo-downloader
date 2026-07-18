@@ -10,6 +10,7 @@ from neo.core.engine import (
     validate_cookie_text, download_batch, get_youtube_stream,
     DOWNLOADS as ENGINE_DOWNLOADS,
 )
+from neo.core.extractors.terabox import resolve_terabox
 from neo.core.processor import clip_media, remove_watermark, erase_metadata
 from neo.core.auth_tokens import user_for_token
 from neo.core.tasks import create_task, get_task_status
@@ -154,6 +155,51 @@ def youtube_stream():
         "stream_url": stream_url,
         "save_url": "/save?url=" + urllib.parse.quote(stream_url, safe="") +
                    "&name=" + urllib.parse.quote((title or "youtube") + "." + ext),
+    })
+
+
+@api_bp.route("/terabox/resolve", methods=["POST"])
+def terabox_resolve():
+    """Server-side Terabox "TeraPlayer" resolver (no user cookies needed).
+
+    The client pastes a Terabox share link; the server resolves it to a
+    direct download URL via Terabox's sharing API (using TERABOX_COOKIE if
+    set, else an anonymous public cookie). Returns the dlink, title, ext and
+    size so the frontend can stream/download it like any other platform.
+    """
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"success": False, "error": "URL required"}), 400
+    if "terabox" not in url.lower() and "1024tera" not in url.lower() \
+            and "dubox" not in url.lower() and "4funbox" not in url.lower():
+        return jsonify({"success": False, "error": "Not a Terabox link"}), 400
+    try:
+        cookie_file = _cookie_file_from_request(data)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    try:
+        res = resolve_terabox(url, cookiefile=cookie_file)
+    except ValueError as e:
+        record_link(url, action="view", status="error",
+                    ip=request.remote_addr,
+                    session_id=session.get("session_id", ""))
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Terabox resolve failed for {url}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    record_link(url, action="view", mode="video", title=res.get("title"),
+                ip=request.remote_addr, session_id=session.get("session_id", ""))
+    return jsonify({
+        "success": True,
+        "title": res.get("title"),
+        "ext": res.get("ext"),
+        "filesize": res.get("filesize"),
+        "direct_url": res.get("url"),
+        "site": "Terabox",
+        "save_url": "/save?url=" + urllib.parse.quote(res["url"], safe="") +
+                   "&name=" + urllib.parse.quote((res.get("title") or "terabox")),
     })
 
 
