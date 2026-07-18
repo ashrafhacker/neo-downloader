@@ -211,6 +211,13 @@ def fetch_info(url, task_id=None, cookiefile=None):
             info = ydl.extract_info(url, download=False)
     except Exception as e:
         msg = str(e)
+        if "members-only" in msg.lower() or "join this channel" in msg.lower():
+            raise Exception(
+                "This is a members-only video. YouTube only serves it to users "
+                "who have joined the channel (paid membership). Join the channel "
+                "in a logged-in browser, then export its cookies via the Cookies "
+                "field (Advanced) to download."
+            )
         if "confirm you" in msg or "Sign in" in msg or "bot" in msg.lower():
             raise Exception(
                 "YouTube blocked this request (bot check). Supply YouTube "
