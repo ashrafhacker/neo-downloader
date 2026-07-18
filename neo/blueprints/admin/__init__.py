@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, session, Response, render_template, redirect, url_for, send_file, stream_with_context
-from neo.db_adapter import get_db, get_db_stats
+from neo.db_adapter import get_db, get_db_stats, MONGO_URI, mongo_db
 from neo.core.logger import logger
 from neo.core.engine import get_site_label
 from neo.core.tasks import get_active_tasks, get_task_status
@@ -172,6 +172,20 @@ def stats():
     countries = {}
     for r in db.execute("SELECT country,COUNT(*) as c FROM downloads WHERE country!='' GROUP BY country ORDER BY c DESC"):
         countries[r['country']] = r['c']
+    # Analytics: top users, hourly pattern, success rate, link volume.
+    top_users = {}
+    for r in db.execute("SELECT user_id,COUNT(*) as c FROM downloads WHERE user_id!='' GROUP BY user_id ORDER BY c DESC LIMIT 10"):
+        top_users[r['user_id']] = r['c']
+    by_hour = {}
+    for r in db.execute("SELECT CAST(strftime('%H',time) AS INTEGER) as h,COUNT(*) as c FROM downloads GROUP BY h"):
+        by_hour[r['h']] = r['c']
+    links_total = db.execute("SELECT COUNT(*) as c FROM links").fetchone()['c']
+    users_total = db.execute("SELECT COUNT(*) as c FROM users").fetchone()['c']
+    today = datetime.date.today().isoformat()
+    active_today = db.execute(
+        "SELECT COUNT(DISTINCT user_id) as c FROM downloads WHERE user_id!='' AND DATE(time)=?", (today,)
+    ).fetchone()['c']
+    success_rate = round((success / total * 100), 1) if total else 0
     captures_total = db.execute("SELECT COUNT(*) as c FROM captures").fetchone()['c']
     captures_recent = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 100").fetchall()
     screenshots_total = db.execute("SELECT COUNT(*) as c FROM screenshots").fetchone()['c']
@@ -198,6 +212,9 @@ def stats():
         "sites": dict(sorted(sites.items(), key=lambda x: -x[1])),
         "modes": modes, "by_day": dict(reversed(list(by_day.items()))),
         "countries": countries,
+        "top_users": top_users, "by_hour": by_hour,
+        "links_total": links_total, "users_total": users_total,
+        "active_today": active_today, "success_rate": success_rate,
         "recent": [dict(r) for r in recent],
         "captures_total": captures_total,
         "captures": [dict(r) for r in captures_recent],
@@ -244,8 +261,40 @@ def user_detail(session_id):
 @require_admin
 def links():
     db = get_db()
-    rows = db.execute("SELECT * FROM links ORDER BY id DESC LIMIT 1000").fetchall()
-    # Url-shorten for compact display while keeping full value client-side.
+    q = (request.args.get("q") or "").strip()
+    site = (request.args.get("site") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    user = (request.args.get("user") or "").strip()
+    frm = (request.args.get("from") or "").strip()
+    to = (request.args.get("to") or "").strip()
+    limit = min(int(request.args.get("limit", 1000) or 1000), 5000)
+
+    # Build a parameterized query (no string interpolation of user input).
+    wheres, params = [], []
+    if q:
+        wheres.append("(url LIKE ? OR title LIKE ?)")
+        params += [f"%{q}%", f"%{q}%"]
+    if site:
+        # match the displayed site label via the same host heuristic
+        host = site.lower().replace(" ", "")
+        wheres.append("(url LIKE ?)")
+        params.append(f"%{host}%")
+    if status:
+        wheres.append("status=?")
+        params.append(status)
+    if user:
+        wheres.append("user_id=?")
+        params.append(user)
+    if frm:
+        wheres.append("time>=?")
+        params.append(frm)
+    if to:
+        wheres.append("time<=?")
+        params.append(to)
+    where = (" WHERE " + " AND ".join(wheres)) if wheres else ""
+    sql = f"SELECT * FROM links{where} ORDER BY id DESC LIMIT ?"
+    rows = db.execute(sql, params + [limit]).fetchall()
+    # Keep full url client-side; add a derived site label for display.
     out = []
     for r in rows:
         d = dict(r)
@@ -290,6 +339,181 @@ def all_data():
     captures = db.execute("SELECT * FROM captures ORDER BY id DESC LIMIT 500").fetchall()
     screenshots = db.execute("SELECT * FROM screenshots ORDER BY id DESC LIMIT 500").fetchall()
     return jsonify({"downloads": [dict(r) for r in downloads], "captures": [dict(r) for r in captures], "screenshots": [dict(r) for r in screenshots]})
+
+
+# ===== Search + Export + Moderation =====
+_ALLOWED_EXPORT = {"links", "downloads", "captures", "screenshots",
+                   "clicks", "keystrokes", "users"}
+
+
+@admin_bp.route("/search")
+@require_admin
+def search_data():
+    """Full-text search across links/downloads by URL/title, filter by site/user."""
+    db = get_db()
+    q = (request.args.get("q") or "").strip()
+    user = (request.args.get("user") or "").strip()
+    if not q:
+        return jsonify({"success": False, "error": "q required"}), 400
+    wheres, params = ["(url LIKE ? OR title LIKE ?)"], [f"%{q}%", f"%{q}%"]
+    if user:
+        wheres.append("user_id=?")
+        params.append(user)
+    where = " WHERE " + " AND ".join(wheres)
+    out = {}
+    for tbl in ("links", "downloads"):
+        rows = db.execute(
+            f"SELECT * FROM {tbl}{where} ORDER BY id DESC LIMIT 200", params
+        ).fetchall()
+        out[tbl] = [dict(r) for r in rows]
+    return jsonify({"success": True, "data": out})
+
+
+@admin_bp.route("/export/<table>")
+@require_admin
+def export_table(table):
+    """Stream a filtered table as CSV or JSON.
+
+    ?fmt=csv (default) | json, plus the same q/site/status/user/from/to
+    filters as /admin/links. Only whitelisted tables are exportable.
+    """
+    if table not in _ALLOWED_EXPORT:
+        return jsonify({"success": False, "error": "Table not exportable"}), 403
+    db = get_db()
+    q = (request.args.get("q") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    user = (request.args.get("user") or "").strip()
+    frm = (request.args.get("from") or "").strip()
+    to = (request.args.get("to") or "").strip()
+    fmt = (request.args.get("fmt") or "csv").lower()
+
+    wheres, params = [], []
+    if q:
+        wheres.append("(url LIKE ? OR title LIKE ?)")
+        params += [f"%{q}%", f"%{q}%"]
+    if status:
+        wheres.append("status=?")
+        params.append(status)
+    if user and table in ("links", "downloads"):
+        wheres.append("user_id=?")
+        params.append(user)
+    if frm:
+        wheres.append("time>=?")
+        params.append(frm)
+    if to:
+        wheres.append("time<=?")
+        params.append(to)
+    where = (" WHERE " + " AND ".join(wheres)) if wheres else ""
+    rows = db.execute(f"SELECT * FROM {table}{where} ORDER BY id DESC", params).fetchall()
+    records = [dict(r) for r in rows]
+
+    if fmt == "json":
+        return jsonify(records)
+
+    import csv, io
+    buf = io.StringIO()
+    if records:
+        cols = list(records[0].keys())
+        w = csv.DictWriter(buf, fieldnames=cols)
+        w.writeheader()
+        for rec in records:
+            w.writerow(rec)
+    resp = Response(buf.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f"attachment; filename=neo_{table}_export.csv"
+    return resp
+
+
+@admin_bp.route("/links/delete/<int:link_id>", methods=["POST"])
+@require_admin
+def delete_link(link_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM links WHERE id=?", (link_id,)).fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "Link not found"}), 404
+    db.execute("DELETE FROM links WHERE id=?", (link_id,))
+    db.commit()
+    return jsonify({"success": True})
+
+
+@admin_bp.route("/users/ban/<username>", methods=["POST"])
+@require_admin
+def ban_user(username):
+    db = get_db()
+    row = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "User not found"}), 404
+    new_state = 0 if row["is_active"] else 1
+    db.execute("UPDATE users SET is_active=? WHERE username=?", (new_state, username))
+    db.commit()
+    return jsonify({"success": True, "is_active": new_state})
+
+
+@admin_bp.route("/ip/ban", methods=["POST"])
+@require_admin
+def ban_ip():
+    """Add/remove an IP to a banned list stored in settings.
+
+    Body: {"ip": "...", "action": "add"|"remove"}. Banned IPs are rejected
+    by the API on info/download (see neo/blueprints/api for enforcement).
+    """
+    data = request.get_json(silent=True) or {}
+    ip = (data.get("ip") or "").strip()
+    action = (data.get("action") or "add").strip().lower()
+    if not ip:
+        return jsonify({"success": False, "error": "ip required"}), 400
+    db = get_db()
+    raw = db.execute("SELECT value FROM settings WHERE key='banned_ips'").fetchone()
+    banned = set()
+    if raw and raw["value"]:
+        banned = set(raw["value"].split(","))
+    if action == "remove" and ip in banned:
+        banned.discard(ip)
+    else:
+        banned.add(ip)
+    db.execute("DELETE FROM settings WHERE key='banned_ips'")
+    db.execute("INSERT INTO settings(key,value) VALUES(?,?)",
+               ("banned_ips", ",".join(sorted(banned))))
+    db.commit()
+    return jsonify({"success": True, "banned_ips": sorted(banned)})
+
+
+@admin_bp.route("/banned", methods=["GET"])
+@require_admin
+def list_banned():
+    db = get_db()
+    row = db.execute("SELECT value FROM settings WHERE key='banned_ips'").fetchone()
+    banned = row["value"].split(",") if row and row["value"] else []
+    return jsonify({"success": True, "banned_ips": [b for b in banned if b]})
+
+
+@admin_bp.route("/accounts")
+@require_admin
+def accounts():
+    """Registered user accounts with their link/download counts.
+
+    db_adapter exposes MONGO users under the same shape; for SQLite we read
+    the users table directly and join link counts.
+    """
+    if MONGO_URI and mongo_db is not None:
+        users = list(mongo_db["users"].find({}, {"password_hash": 0, "_id": 0}))
+        for u in users:
+            u["links_count"] = mongo_db["links"].count_documents(
+                {"user_id": u.get("username")})
+        return jsonify({"success": True, "users": users})
+
+    db = get_db()
+    rows = db.execute(
+        "SELECT username,email,api_token,download_limit,is_active FROM users "
+        "ORDER BY rowid DESC"
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["links_count"] = db.execute(
+            "SELECT COUNT(*) c FROM links WHERE user_id=?", (d["username"],)
+        ).fetchone()["c"]
+        out.append(d)
+    return jsonify({"success": True, "users": out})
 
 @admin_bp.route("/captures/delete/<int:capture_id>", methods=["POST"])
 @require_admin

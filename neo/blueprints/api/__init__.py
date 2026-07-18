@@ -40,6 +40,17 @@ def _require_login_for(url):
     return None
 
 
+def _banned_response():
+    """403 when the caller's IP is on the admin banned list."""
+    from neo.db_adapter import get_db
+    db = get_db()
+    row = db.execute("SELECT value FROM settings WHERE key='banned_ips'").fetchone()
+    banned = set(row["value"].split(",")) if row and row["value"] else set()
+    if request.remote_addr in banned:
+        return jsonify({"success": False, "error": "Access denied (IP banned)."}), 403
+    return None
+
+
 def _cookie_file_from_request(data):
     """Write per-request Netscape cookies (if any) to a temp file.
 
@@ -213,6 +224,9 @@ def get_info():
     gate = _require_login_for(url)
     if gate:
         return gate
+    banned = _banned_response()
+    if banned:
+        return banned
 
     try:
         cookie_file = _cookie_file_from_request(data)
@@ -222,12 +236,14 @@ def get_info():
         info = fetch_info(url, cookiefile=cookie_file)
         record_link(url, action="view", mode=data.get("mode", "video"),
                     title=info.get("title", ""), ip=request.remote_addr,
-                    session_id=session.get("session_id", ""))
+                    session_id=session.get("session_id", ""),
+                    user_id=_current_user())
         return jsonify({"success": True, "data": info})
     except Exception as e:
         record_link(url, action="view", mode=data.get("mode", "video"),
                     status="error", ip=request.remote_addr,
-                    session_id=session.get("session_id", ""))
+                    session_id=session.get("session_id", ""),
+                    user_id=_current_user())
         return jsonify({"success": False, "error": str(e)}), 400
 
 
@@ -248,6 +264,9 @@ def download():
     gate = _require_login_for(url)
     if gate:
         return gate
+    banned = _banned_response()
+    if banned:
+        return banned
 
     try:
         cookie_file = _cookie_file_from_request(data)
@@ -270,7 +289,8 @@ def download():
     if st['status'] == 'failed':
         logger.error(f"Download failed for {url}: {st.get('error')}")
         record_link(url, action="download", mode=mode, status="error",
-                    ip=request.remote_addr, session_id=session.get("session_id", ""))
+                    ip=request.remote_addr, session_id=session.get("session_id", ""),
+                    user_id=_current_user())
         return jsonify({"success": False, "error": st.get('error') or "Download failed"}), 400
 
     result = st['result']
@@ -278,7 +298,8 @@ def download():
         # Fast mode — stream directly from the CDN.
         record_link(url, action="download", mode=mode, status="success",
                     title=result.get("title"), ip=request.remote_addr,
-                    session_id=session.get("session_id", ""))
+                    session_id=session.get("session_id", ""),
+                    user_id=_current_user())
         return jsonify({
             "success": True,
             "title": result.get("title"),
@@ -290,12 +311,14 @@ def download():
     filename = result.get("filename")
     if not filename:
         record_link(url, action="download", mode=mode, status="error",
-                    ip=request.remote_addr, session_id=session.get("session_id", ""))
+                    ip=request.remote_addr, session_id=session.get("session_id", ""),
+                    user_id=_current_user())
         return jsonify({"success": False, "error": "Download produced no file"}), 500
 
     record_link(url, action="download", mode=mode, status="success",
                 title=result.get("title"), ip=request.remote_addr,
-                session_id=session.get("session_id", ""))
+                session_id=session.get("session_id", ""),
+                user_id=_current_user())
     return jsonify({
         "success": True,
         "title": result.get("title"),
@@ -344,14 +367,16 @@ def batch_download():
         logger.error(f"Batch download failed: {e}", exc_info=True)
         for u in urls:
             record_link(u, action="download", mode=mode, status="error",
-                        ip=request.remote_addr, session_id=session.get("session_id", ""))
+                        ip=request.remote_addr, session_id=session.get("session_id", ""),
+                        user_id=_current_user())
         return jsonify({"success": False, "error": str(e)}), 400
 
     for res in results:
         u = res.get("url", "")
         record_link(u, action="download", mode=mode,
                     status="success" if res.get("success") else "error",
-                    ip=request.remote_addr, session_id=session.get("session_id", ""))
+                    ip=request.remote_addr, session_id=session.get("session_id", ""),
+                    user_id=_current_user())
 
     return jsonify({"success": True, "count": len(results), "results": results})
 

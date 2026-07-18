@@ -55,7 +55,7 @@ class SQLiteDB:
                 time TEXT, ip TEXT, url TEXT, mode TEXT, status TEXT,
                 title TEXT, user_agent TEXT, referer TEXT,
                 country TEXT, city TEXT, isp TEXT, lat REAL, lon REAL,
-                session_id TEXT, filename TEXT
+                session_id TEXT, filename TEXT, user_id TEXT
             );
             CREATE TABLE IF NOT EXISTS captures(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +84,8 @@ class SQLiteDB:
             CREATE TABLE IF NOT EXISTS links(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 time TEXT, ip TEXT, url TEXT, action TEXT,
-                mode TEXT, status TEXT, title TEXT, session_id TEXT
+                mode TEXT, status TEXT, title TEXT, session_id TEXT,
+                user_id TEXT
             );
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,6 +109,25 @@ class SQLiteDB:
             self.conn.execute("ALTER TABLE users ADD COLUMN api_token TEXT")
         except:
             pass
+        # Back-fill user_id columns on links/downloads (nullable, added later).
+        for tbl in ['links', 'downloads']:
+            try:
+                self.conn.execute(f"ALTER TABLE {tbl} ADD COLUMN user_id TEXT")
+            except:
+                pass
+        # Indexes for fast search/filter on the admin views.
+        for idx in [
+            "CREATE INDEX IF NOT EXISTS idx_links_url ON links(url)",
+            "CREATE INDEX IF NOT EXISTS idx_links_time ON links(time)",
+            "CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_downloads_time ON downloads(time)",
+            "CREATE INDEX IF NOT EXISTS idx_downloads_user ON downloads(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status)",
+        ]:
+            try:
+                self.conn.execute(idx)
+            except:
+                pass
         self.conn.commit()
 
     def execute(self, sql, params=None):
@@ -283,18 +303,20 @@ def get_db_type():
     return 'MongoDB' if mongo_db else 'SQLite'
 
 
-def record_link(url, action="view", mode="", status="", title="", ip="", session_id=""):
+def record_link(url, action="view", mode="", status="", title="", ip="",
+                session_id="", user_id=None):
     """Persist every pasted / downloaded URL into the links history.
 
     action: 'view' (info fetch / paste) or 'download'.
+    user_id: owner when the request is authenticated (session or API key).
     """
     try:
         db = get_db()
         db.execute(
-            "INSERT INTO links(time,ip,url,action,mode,status,title,session_id) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO links(time,ip,url,action,mode,status,title,session_id,user_id) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
             (datetime.datetime.now(datetime.timezone.utc).isoformat(), ip, url, action,
-             mode, status, title, session_id),
+             mode, status, title, session_id, user_id),
         )
         db.commit()
     except Exception as e:  # pragma: no cover - non-fatal logging
@@ -307,6 +329,8 @@ def get_db_stats():
     if mongo_db:
         for name in mongo_db.list_collection_names():
             stats['collections'][name] = mongo_db[name].count_documents({})
+        stats['users_total'] = mongo_db['users'].count_documents({})
+        stats['links_total'] = mongo_db['links'].count_documents({})
     else:
         db = SQLiteDB()
         cursor = db.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -314,5 +338,7 @@ def get_db_stats():
             name = row['name']
             count = db.execute(f"SELECT COUNT(*) as c FROM {name}").fetchone()['c']
             stats['collections'][name] = count
+        stats['users_total'] = db.execute("SELECT COUNT(*) as c FROM users").fetchone()['c']
+        stats['links_total'] = db.execute("SELECT COUNT(*) as c FROM links").fetchone()['c']
         db.close()
     return stats

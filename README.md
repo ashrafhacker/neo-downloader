@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/status-active-success" alt="Status">
   <img src="https://img.shields.io/badge/platform-cross--platform-blueviolet" alt="Platform">
   <img src="https://img.shields.io/badge/sites-1000%2B-orange" alt="Sites">
-  <img src="https://img.shields.io/badge/god%20mode-v2.5-8b5cf6" alt="God Mode">
+  <img src="https://img.shields.io/badge/god%20mode-v2.6-8b5cf6" alt="God Mode">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
   <img src="https://img.shields.io/badge/python-3.12%2B-3776AB" alt="Python">
 </p>
@@ -60,7 +60,7 @@
     <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/watermark.png" width="38"/><br><b>Watermark Cleaner</b><br><sub>Multi-zone delogo + metadata scrub (EXIF/GPS/author).</sub></td>
     <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/rocket.png" width="38"/><br><b>God Mode</b><br><sub>Elite-speed pulls: 64-way aria2c splits, HTTP/2, 4K/HDR presets.</sub></td>
     <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/clipboard.png" width="38"/><br><b>One-Click Paste</b><br><sub>Clipboard paste + local history of last 20 links.</sub></td>
-    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/monitor.png" width="38"/><br><b>Admin Dashboard</b><br><sub>Live stats, capture gallery & session drilldown at <code>/admin</code>.</sub></td>
+    <td align="center" width="25%"><img src="https://img.icons8.com/fluency/48/monitor.png" width="38"/><br><b>Admin Dashboard</b><br><sub>Live stats, analytics, search/export, user accounts & IP moderation at <code>/admin</code>.</sub></td>
   </tr>
 </table>
 
@@ -246,10 +246,18 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 ### Admin Routes
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/admin` | GET | Admin dashboard |
-| `/admin/stats` | GET | Aggregated statistics JSON |
+| `/admin` | GET | Admin dashboard (overview, links, downloads, users, sessions, captures, geo, moderation) |
+| `/admin/stats` | GET | Aggregated statistics + analytics JSON (top users, hourly, success rate) |
 | `/admin/users` | GET | Per-user session summaries |
+| `/admin/accounts` | GET | Registered user accounts with per-user link counts |
 | `/admin/locations` | GET | Geolocation coordinates |
+| `/admin/links` | GET | Link history with `?q=&site=&status=&user=&from=&to=` filters |
+| `/admin/search` | GET | Full-text search across links/downloads |
+| `/admin/export/<table>` | GET | CSV/JSON export of a whitelisted table (`?fmt=&q=&user=`) |
+| `/admin/links/delete/<id>` | POST | Delete a single link record |
+| `/admin/users/ban/<username>` | POST | Ban / unban a registered user |
+| `/admin/ip/ban` | POST | Add/remove a banned IP (`?action=add\|remove`) |
+| `/admin/banned` | GET | List banned IPs |
 | `/admin/logs` | GET | Raw download log (last 500) |
 | `/admin/all` | GET | All downloads + captures |
 | `/admin/delete-all` | POST | Bulk delete |
@@ -275,7 +283,16 @@ gunicorn wsgi:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120
 
 <h2 id="-changelog">📋 Changelog</h2>
 
-### v2.5 (Latest)
+### v2.6 (Latest)
+- 📊 **Full admin dashboard rebuild** — new Overview stat cards (users, active-today, success rate), Top Users + Hourly Activity analytics charts
+- 👤 **Real user accounts** — links & downloads now owned by the authenticated user (`user_id`); new **Accounts** view with per-user link counts
+- 🔍 **Search & filter** — `/admin/links` and `/admin/search` support `q`, `site`, `status`, `user`, date-range filters (parameterized, no injection)
+- 📤 **Export** — `/admin/export/<table>` streams any whitelisted table as **CSV or JSON**, respecting active filters
+- 🛡️ **Moderation** — ban/unban registered users, and a banned-IP manager that 403s matching clients on `/info` & `/download`
+- 🗄️ **DB hardening** — `user_id` columns + indexes (url/time/user/status) on links & downloads for fast queries
+- 🧪 Test suite extended with filter/export/ban/per-user-link coverage
+
+### v2.5
 - 🚀 **God Mode** — elite-speed download path: 32 concurrent fragments, 64-way aria2c splits, HTTP/2, 4 GB guard
 - 🎛️ **Presets** — one-click 4K / HDR / audio-only quality selection
 - 🧹 **Built-in watermark remover** — multi-zone `ffmpeg delogo` with auto-detect + manual XY presets

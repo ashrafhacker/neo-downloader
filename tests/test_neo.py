@@ -178,6 +178,91 @@ def test_admin_delete_all(client):
     assert r.get_json()["success"] is True
 
 
+def test_admin_links_filter_and_export(client):
+    _setup_admin(client)
+    from neo.db_adapter import record_link, get_db
+    record_link("https://youtube.com/watch?v=abc", action="download", user_id="alice")
+    record_link("https://tiktok.com/@u/video/xyz", action="view", user_id="bob")
+
+    # Filter by site.
+    r = client.get("/admin/links?q=youtube")
+    assert r.status_code == 200
+    rows = r.get_json()["data"]
+    assert any("youtube" in (x.get("url") or "") for x in rows)
+    assert not any("tiktok" in (x.get("url") or "") for x in rows)
+
+    # Filter by user.
+    r = client.get("/admin/links?user=bob")
+    assert r.status_code == 200
+    assert all(x.get("user_id") == "bob" for x in r.get_json()["data"])
+
+    # CSV export streams rows.
+    r = client.get("/admin/export/links?fmt=csv")
+    assert r.status_code == 200
+    assert r.mimetype == "text/csv"
+    assert b"youtube" in r.data
+
+    # JSON export returns a list.
+    r = client.get("/admin/export/links?fmt=json&q=tiktok")
+    assert r.status_code == 200
+    assert isinstance(r.get_json(), list)
+    assert len(r.get_json()) == 1
+
+    # Non-exportable table is rejected.
+    r = client.get("/admin/export/settings?fmt=csv")
+    assert r.status_code == 403
+
+
+def test_admin_accounts_and_ban(client):
+    _setup_admin(client)
+    from neo.db_adapter import get_db
+    db = get_db()
+    db.execute(
+        "INSERT INTO users(username,email,password_hash,is_active) VALUES(?,?,?,?)",
+        ("carol", "carol@example.com", "x", 1),
+    )
+    db.commit()
+
+    r = client.get("/admin/accounts")
+    assert r.status_code == 200
+    users = r.get_json()["users"]
+    assert any(u["username"] == "carol" for u in users)
+
+    # Ban then unban.
+    r = client.post("/admin/users/ban/carol")
+    assert r.status_code == 200
+    assert r.get_json()["is_active"] == 0
+    r = client.post("/admin/users/ban/carol")
+    assert r.get_json()["is_active"] == 1
+
+    # IP ban add/remove.
+    r = client.post("/admin/ip/ban", json={"ip": "1.2.3.4", "action": "add"})
+    assert r.status_code == 200
+    assert "1.2.3.4" in r.get_json()["banned_ips"]
+    r = client.post("/admin/ip/ban", json={"ip": "1.2.3.4", "action": "remove"})
+    assert "1.2.3.4" not in r.get_json()["banned_ips"]
+
+
+def test_stats_includes_analytics_fields(client):
+    _setup_admin(client)
+    r = client.get("/admin/stats")
+    data = r.get_json()
+    for key in ("links_total", "users_total", "active_today", "success_rate",
+                "top_users", "by_hour"):
+        assert key in data, f"stats missing analytic key: {key}"
+
+
+def test_record_link_stores_user_id(app):
+    from neo.db_adapter import record_link, get_db
+    with app.app_context():
+        record_link("https://example.com/v/1", action="view", user_id="dave")
+        row = get_db().execute(
+            "SELECT user_id FROM links WHERE url=? ORDER BY id DESC LIMIT 1",
+            ("https://example.com/v/1",),
+        ).fetchone()
+    assert row["user_id"] == "dave"
+
+
 def test_admin_settings_pages(client):
     _setup_admin(client)
     r = client.get("/admin/settings")
